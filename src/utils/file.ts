@@ -15,7 +15,7 @@ export function assertFileSize(file: File, maxMb: number): void {
   }
 }
 
-export function validateExcelFile(file: File): void {
+export function validateExcelFile(file: File, maxSizeMb?: number): void {
   const ext = getFileExtension(file.name)
   const allowed: readonly string[] = ALLOWED_EXCEL_EXTENSIONS
   if (!allowed.includes(ext)) {
@@ -23,5 +23,5 @@ export function validateExcelFile(file: File): void {
       `허용되지 않는 파일 형식입니다: .${ext} (허용: .xlsx, .xls)`
     )
   }
-  assertFileSize(file, MAX_UPLOAD_SIZE_MB)
+  assertFileSize(file, maxSizeMb ?? MAX_UPLOAD_SIZE_MB)
 }

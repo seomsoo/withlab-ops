@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-0
+1
 
 ## 진행 단계 전체 흐름
 
@@ -20,53 +20,59 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 ## 단계별 진행 현황
 
 ### Phase 0: 프로젝트 셋업
-- **상태**: ✅ 검증 통과
+- **상태**: ✅ 완료
 - **시작일**: 2026-05-08
 - **완료일**: 2026-05-08
 - **스펙 문서**: `docs/specs/PHASE_00_프로젝트_셋업.md`
 - **검증 결과**: `docs/specs/PHASE_00-verify.md` — ✅ 통과 (P1: 0건, P2: 2건 수용/보류)
 - **산출물**:
-  - [ ] Vite + React + TypeScript 프로젝트 초기화
-  - [ ] Tailwind CSS + shadcn/ui (디자인 토큰은 임시값)
-  - [ ] Supabase DB 12테이블 마이그레이션 + RLS
-  - [ ] Storage 버킷 (templates)
-  - [ ] TypeScript 타입 정의 (`src/types/index.ts`)
-  - [ ] Zod 스키마 (`src/lib/schemas/index.ts`)
-  - [ ] 유틸 함수 (phone.ts, excel.ts, lib/utils.ts)
-  - [ ] Supabase 클라이언트
-  - [ ] ESLint + Prettier + Vitest 설정
-  - [ ] .env.example, .gitignore, package.json scripts
+  - [x] Vite + React + TypeScript 프로젝트 초기화
+  - [x] Tailwind CSS + shadcn/ui (디자인 토큰은 임시값)
+  - [x] Supabase DB 12테이블 마이그레이션 + RLS
+  - [x] Storage 버킷 (templates)
+  - [x] TypeScript 타입 정의 (`src/types/index.ts`)
+  - [x] Zod 스키마 (`src/lib/schemas/index.ts`)
+  - [x] 유틸 함수 (phone.ts, excel.ts, lib/utils.ts)
+  - [x] Supabase 클라이언트
+  - [x] ESLint + Prettier + Vitest 설정
+  - [x] .env.example, .gitignore, package.json scripts
 - **이슈/메모**: -
 
 ### 디자인 시스템 추출 (Phase 0 ↔ Phase 1 사이)
-- **상태**: ⬜ 대기 (Phase 0 완료 후 진행)
-- **시작일**: -
-- **완료일**: -
+- **상태**: ✅ 완료
+- **시작일**: 2026-05-09
+- **완료일**: 2026-05-09
 - **유형**: 비-코드 작업 (디자인 → 추출 → 토큰 교체)
 - **산출물**:
-  - [ ] Claude Design으로 핵심 화면 시안 1~2개 생성
+  - [x] Claude Design으로 핵심 화면 시안 1~2개 생성
         (예: 대시보드, 발주서 공급처 배정 화면)
-  - [ ] 시안에서 색상/타이포/스페이싱/라운딩/그림자 값 추출
-  - [ ] `docs/REF_디자인_시스템.md` 작성
+  - [x] 시안에서 색상/타이포/스페이싱/라운딩/그림자 값 추출
+  - [x] `docs/REF_디자인_시스템.md` 작성
         (색상 토큰 전체, 타이포 스케일, 스페이싱 체계,
          컴포넌트별 className 패턴 — Button, Input, Card, Badge, Modal, Table 등)
-  - [ ] `src/index.css`의 `@theme` 블록을 추출한 정식 토큰으로 교체
-  - [ ] `npm run build` 통과 확인
+  - [x] `src/index.css`의 `@theme` 블록을 추출한 정식 토큰으로 교체
+  - [x] `npm run build` 통과 확인
 - **이슈/메모**: -
 
 ### Phase 1: 인증 + 레이아웃
-- **상태**: ⬜ 대기 (디자인 시스템 추출 완료 후 시작)
-- **스펙 문서**: 미작성
-- **주요 범위**: 로그인, AuthProvider, 사이드바 레이아웃, 라우팅 14개, 인증 가드, Toast 시스템, ErrorBoundary, 공통 UI 컴포넌트
-- **선행 조건**: Phase 0 ✅ + 디자인 시스템 추출 ✅
-- **산출물 예정**:
-  - 로그인 페이지
-  - AppLayout (사이드바 + Outlet)
-  - useAuth 훅
-  - ProtectedRoute / PublicRoute
-  - 공통 컴포넌트 (Button, Input, Card, Badge, Dialog, Toast, FileUpload, StatusBadge, EmptyState 등)
-  - ErrorBoundary
-  - Placeholder 페이지 14개
+- **상태**: ✅ 검증 통과
+- **시작일**: 2026-05-09
+- **완료일**: 2026-05-09
+- **스펙 문서**: `docs/specs/PHASE_01_인증_레이아웃.md`
+- **검증 결과**: `docs/specs/PHASE_01-verify.md` — ✅ 통과 (P1: 0건, P2: 2건 수정 완료)
+- **산출물**:
+  - [x] 로그인 페이지 (시안 재현, form/trim/aria/에러 처리)
+  - [x] AppLayout (240px 사이드바 + 메인 그리드)
+  - [x] AuthProvider + useAuth 훅 (세션 복원/구독/cleanup)
+  - [x] ProtectedRoute / PublicRoute (인증 가드)
+  - [x] Sidebar (9개 메뉴 + 2개 섹션 라벨 + 로그아웃)
+  - [x] TopBar (라우트 기반 제목)
+  - [x] 공통 컴포넌트 (Logo, PageHeader, StatusBadge, EmptyState, LoadingSpinner, FileUpload, ConfirmDialog)
+  - [x] shadcn/ui (button, input, label, dialog, dropdown-menu, separator, sonner)
+  - [x] ErrorBoundary (class component)
+  - [x] Placeholder 페이지 9개
+  - [x] 웹폰트 (Pretendard + JetBrains Mono)
+- **이슈/메모**: shadcn 기본 토큰(bg-popover 등) 미정의 → 권장 수정
 
 ### Phase 2: 매핑 관리
 - **상태**: ⬜ 대기

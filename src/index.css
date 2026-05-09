@@ -57,10 +57,34 @@
   --shadow-sm: 0 1px 2px rgba(20, 28, 40, 0.04);
   --shadow-md: 0 6px 24px rgba(20, 28, 40, 0.06);
   --shadow-lg: 0 12px 40px rgba(20, 28, 40, 0.12);
+
+  /* Semantic text — Badge/StatusBadge 등에서 사용 */
+  --color-success-dark: #1A7F37;
+  --color-warning-dark: #B35C00;
+  --color-error-dark: #C81E12;
+
+  /* shadcn/ui 호환 토큰 */
+  --color-background: #FFFFFF;
+  --color-foreground: var(--color-t-strong);
+  --color-popover: #FFFFFF;
+  --color-popover-foreground: var(--color-t-strong);
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: var(--color-gray-200);
+  --color-secondary-foreground: var(--color-t-strong);
+  --color-muted: var(--color-gray-200);
+  --color-muted-foreground: var(--color-t-mute);
+  --color-accent: var(--color-gray-200);
+  --color-accent-foreground: var(--color-t-strong);
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: #FFFFFF;
+  --color-border: var(--color-line);
+  --color-input: var(--color-line-strong);
+  --color-ring: var(--color-primary);
 }
 
 @layer base {
   body {
+    font-family: var(--font-sans);
     background: var(--color-bg);
     color: var(--color-t-strong);
     font-size: 14px;
@@ -68,4 +92,13 @@
     letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
   }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
