@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-1
+2
 
 ## 진행 단계 전체 흐름
 
@@ -55,7 +55,7 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 - **이슈/메모**: -
 
 ### Phase 1: 인증 + 레이아웃
-- **상태**: ✅ 검증 통과
+- **상태**: ✅ 완료
 - **시작일**: 2026-05-09
 - **완료일**: 2026-05-09
 - **스펙 문서**: `docs/specs/PHASE_01_인증_레이아웃.md`
@@ -75,14 +75,27 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 - **이슈/메모**: shadcn 기본 토큰(bg-popover 등) 미정의 → 권장 수정
 
 ### Phase 2: 매핑 관리
-- **상태**: ⬜ 대기
-- **스펙 문서**: 미작성
-- **주요 범위**: 공급처 CRUD, 품목↔공급처 매핑 CRUD, 상품명 변환 매핑 CRUD, 택배사 매핑 CRUD
+- **상태**: ✅ 검증 통과
+- **시작일**: 2026-05-09
+- **완료일**: 2026-05-10
+- **스펙 문서**: `docs/specs/PHASE_02_매핑_관리.md`
+- **검증 결과**: `docs/specs/PHASE_02-verify.md` — ✅ 통과 (P1: 0건, P2: 1건 수정 완료)
 - **선행 조건**: Phase 1 ✅
-- **산출물 예정**:
-  - Supabase API 함수 (suppliers, product_mappings, name_mappings, courier_mappings)
-  - useSuppliers, useProductMappings, useNameMappings, useCourierMappings 훅
-  - 매핑 관리 4개 페이지 UI
+- **산출물**:
+  - [x] `src/lib/supabase/errors.ts` — DB 에러 공통 유틸
+  - [x] `src/lib/supabase/suppliers.ts` — 공급처 CRUD API
+  - [x] `src/lib/supabase/productMappings.ts` — 품목 매핑 CRUD API
+  - [x] `src/lib/supabase/nameMappings.ts` — 상품명 변환 CRUD API
+  - [x] `src/lib/supabase/courierMappings.ts` — 택배사 매핑 CRUD API
+  - [x] `src/hooks/useSuppliers.ts` — 공급처 훅
+  - [x] `src/hooks/useProductMappings.ts` — 품목 매핑 훅
+  - [x] `src/hooks/useNameMappings.ts` — 상품명 변환 훅
+  - [x] `src/hooks/useCourierMappings.ts` — 택배사 매핑 훅
+  - [x] `src/components/PlatformBadge.tsx` — 플랫폼 뱃지
+  - [x] shadcn/ui 컴포넌트 (table, select, sheet, badge, tooltip, popover, checkbox)
+  - [x] Zod 폼 스키마 + WithSupplier 타입
+  - [x] 매핑 관리 4개 페이지 UI (공급처/품목/상품명/택배사)
+- **이슈/메모**: -
 
 ### Phase 3: 주문 업로드 + 파싱
 - **상태**: ⬜ 대기

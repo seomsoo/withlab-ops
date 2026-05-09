@@ -1,5 +1,11 @@
 import { z } from 'zod/v4'
 
+import type {
+  ProductMapping,
+  NameMapping,
+  CourierMapping,
+} from '@/types'
+
 const platformSchema = z.enum(['coupang', 'toss'])
 const platformWithCommonSchema = z.enum(['coupang', 'toss', 'common'])
 const allocationStatusSchema = z.enum(['pending', 'ordered'])
@@ -92,10 +98,22 @@ export const supplierSchema = z.object({
   updatedAt: z.string(),
 })
 
+// --- 폼 스키마 헬퍼 ---
+const requiredTrimmedString = (message: string) =>
+  z.string().trim().min(1, message)
+
+const optionalTrimmedString = z
+  .string()
+  .optional()
+  .transform((v) => v?.trim() ?? '')
+
+const requiredUuid = (message: string) =>
+  z.string().min(1, message).uuid('올바른 값을 선택해주세요')
+
 export const supplierFormSchema = z.object({
-  name: z.string().min(1, '공급처명을 입력해주세요'),
-  contact: z.string().optional(),
-  memo: z.string().optional(),
+  name: requiredTrimmedString('공급처명을 입력해주세요'),
+  contact: optionalTrimmedString,
+  memo: optionalTrimmedString,
 })
 
 export const productMappingSchema = z.object({
@@ -130,6 +148,56 @@ export const courierMappingSchema = z.object({
   tossName: z.string(),
   createdAt: z.string(),
 })
+
+export type SupplierFormData = z.infer<typeof supplierFormSchema>
+
+export const productMappingFormSchema = z.object({
+  platform: platformWithCommonSchema,
+  productName: requiredTrimmedString('상품명을 입력해주세요'),
+  optionName: optionalTrimmedString,
+  supplierId: requiredUuid('공급처를 선택해주세요'),
+  isDefault: z.boolean().default(true),
+  priority: z.coerce.number().int().min(0).max(999).default(0),
+})
+
+export type ProductMappingFormData = z.infer<typeof productMappingFormSchema>
+
+export const nameMappingFormSchema = z.object({
+  platform: platformWithCommonSchema,
+  platformProductName: requiredTrimmedString('플랫폼 상품명을 입력해주세요'),
+  platformOptionName: optionalTrimmedString,
+  supplierId: requiredUuid('공급처를 선택해주세요'),
+  supplierProductName: requiredTrimmedString('공급처 상품명을 입력해주세요'),
+  supplierProductCode: optionalTrimmedString,
+})
+
+export type NameMappingFormData = z.infer<typeof nameMappingFormSchema>
+
+export const courierMappingFormSchema = z.object({
+  sourceSupplierId: requiredUuid('공급처를 선택해주세요'),
+  sourceName: requiredTrimmedString('원본 택배사명을 입력해주세요'),
+  coupangName: requiredTrimmedString('쿠팡 택배사명을 입력해주세요'),
+  tossName: requiredTrimmedString('토스 택배사명을 입력해주세요'),
+})
+
+export type CourierMappingFormData = z.infer<typeof courierMappingFormSchema>
+
+// --- WithSupplier 타입 (join 결과) ---
+
+export type ProductMappingWithSupplier = ProductMapping & {
+  supplierName: string
+  supplierIsActive: boolean
+}
+
+export type NameMappingWithSupplier = NameMapping & {
+  supplierName: string
+  supplierIsActive: boolean
+}
+
+export type CourierMappingWithSupplier = CourierMapping & {
+  supplierName: string
+  supplierIsActive: boolean
+}
 
 export const columnMappingItemSchema = z.object({
   targetColumnIndex: z.number().int(),

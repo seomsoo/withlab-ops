@@ -1,0 +1,86 @@
+import { supabase } from '@/lib/supabase/client'
+import {
+  courierMappingFormSchema,
+  toCourierMapping,
+} from '@/lib/schemas'
+import { toFriendlyDbError } from '@/lib/supabase/errors'
+
+import type { CourierMapping } from '@/types'
+import type {
+  CourierMappingFormData,
+  CourierMappingWithSupplier,
+  CourierMappingRow,
+} from '@/lib/schemas'
+
+type CourierMappingJoinRow = CourierMappingRow & {
+  supplier: { id: string; name: string; is_active: boolean } | null
+}
+
+function toCourierMappingWithSupplier(
+  row: CourierMappingJoinRow
+): CourierMappingWithSupplier {
+  return {
+    ...toCourierMapping(row),
+    supplierName: row.supplier?.name ?? '알 수 없음',
+    supplierIsActive: row.supplier?.is_active ?? false,
+  }
+}
+
+export async function getCourierMappings(): Promise<
+  CourierMappingWithSupplier[]
+> {
+  const { data, error } = await supabase
+    .from('courier_mappings')
+    .select(
+      '*, supplier:suppliers!courier_mappings_source_supplier_id_fkey(id, name, is_active)'
+    )
+    .order('source_name')
+  if (error) throw new Error(`택배사 매핑 조회 실패: ${error.message}`)
+  return (data as CourierMappingJoinRow[]).map(toCourierMappingWithSupplier)
+}
+
+export async function createCourierMapping(
+  input: CourierMappingFormData
+): Promise<CourierMapping> {
+  const parsed = courierMappingFormSchema.parse(input)
+  const { data, error } = await supabase
+    .from('courier_mappings')
+    .insert({
+      source_supplier_id: parsed.sourceSupplierId,
+      source_name: parsed.sourceName,
+      coupang_name: parsed.coupangName,
+      toss_name: parsed.tossName,
+    })
+    .select()
+    .single()
+  if (error) throw new Error(toFriendlyDbError(error, 'courier_mapping'))
+  return toCourierMapping(data as CourierMappingRow)
+}
+
+export async function updateCourierMapping(
+  id: string,
+  input: CourierMappingFormData
+): Promise<CourierMapping> {
+  const parsed = courierMappingFormSchema.parse(input)
+  const { data, error } = await supabase
+    .from('courier_mappings')
+    .update({
+      source_supplier_id: parsed.sourceSupplierId,
+      source_name: parsed.sourceName,
+      coupang_name: parsed.coupangName,
+      toss_name: parsed.tossName,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw new Error(toFriendlyDbError(error, 'courier_mapping'))
+  return toCourierMapping(data as CourierMappingRow)
+}
+
+export async function deleteCourierMapping(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('courier_mappings')
+    .delete()
+    .eq('id', id)
+  if (error) throw new Error(`택배사 매핑 삭제 실패: ${error.message}`)
+}

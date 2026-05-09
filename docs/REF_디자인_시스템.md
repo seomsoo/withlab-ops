@@ -58,6 +58,16 @@
 | 쿠팡 | `#E64C3C` | 로고 배경, 칩 |
 | 토스 | `#3182F6` | 로고 배경, 칩 |
 
+### 플랫폼 뱃지
+| 토큰 | 값 | 용도 |
+|------|-----|------|
+| `--color-platform-coupang-bg` | `#FEF0EF` | 쿠팡 뱃지 배경 |
+| `--color-platform-coupang-text` | `#E64C3C` | 쿠팡 뱃지 텍스트 |
+| `--color-platform-toss-bg` | `var(--color-primary-50)` | 토스 뱃지 배경 |
+| `--color-platform-toss-text` | `var(--color-primary)` | 토스 뱃지 텍스트 |
+| `--color-platform-common-bg` | `var(--color-gray-200)` | 공통 뱃지 배경 |
+| `--color-platform-common-text` | `var(--color-t-mid)` | 공통 뱃지 텍스트 |
+
 ---
 
 ## 2. 타이포그래피

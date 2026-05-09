@@ -63,6 +63,14 @@
   --color-warning-dark: #B35C00;
   --color-error-dark: #C81E12;
 
+  /* Platform Badge */
+  --color-platform-coupang-bg: #FEF0EF;
+  --color-platform-coupang-text: #E64C3C;
+  --color-platform-toss-bg: var(--color-primary-50);
+  --color-platform-toss-text: var(--color-primary);
+  --color-platform-common-bg: var(--color-gray-200);
+  --color-platform-common-text: var(--color-t-mid);
+
   /* shadcn/ui 호환 토큰 */
   --color-background: #FFFFFF;
   --color-foreground: var(--color-t-strong);
