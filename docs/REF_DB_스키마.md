@@ -353,6 +353,25 @@ end;
 $$;
 
 -- ==========================================
+-- 테이블 권한 (GRANT)
+-- RLS 정책만으로는 부족 — 역할별 테이블 접근 권한 필요
+-- ==========================================
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant select, insert, update, delete on all tables in schema public to anon;
+grant usage, select on all sequences in schema public to authenticated;
+grant usage, select on all sequences in schema public to anon;
+
+-- 향후 생성될 테이블에도 자동 적용
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to authenticated;
+alter default privileges in schema public
+  grant select, insert, update, delete on tables to anon;
+alter default privileges in schema public
+  grant usage, select on sequences to authenticated;
+alter default privileges in schema public
+  grant usage, select on sequences to anon;
+
+-- ==========================================
 -- Storage 버킷 + RLS 정책
 -- ==========================================
 -- 1. Supabase Dashboard에서 버킷 생성:
@@ -389,11 +408,14 @@ using (bucket_id = 'templates');
 ```
 
 ## 마이그레이션 실행 순서
-1. 위 SQL 전체를 Supabase SQL Editor에서 실행 (12테이블 + 트리거 + RLS)
+1. 위 SQL 전체를 Supabase SQL Editor에서 실행 (12테이블 + 트리거 + RLS + GRANT)
 2. Dashboard → Storage에서 `templates` 버킷 수동 생성 (Private)
 3. SQL Editor에서 storage.objects 정책 4개 적용
 4. Auth → Email/Password 활성화 + 테스트 계정 생성
 5. 로그인 후 templates 버킷에 테스트 파일 업로드/다운로드 동작 확인
+
+> ⚠️ **주의**: RLS 정책(Policy)과 테이블 권한(GRANT)은 별개다.
+> RLS만 설정하고 GRANT를 빠뜨리면 `permission denied for table` 403 에러가 발생한다.
 
 ## 주문 테이블 의미
 
