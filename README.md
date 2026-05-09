@@ -1,61 +1,83 @@
-# WithLab Ops — 프로젝트 셋업 패키지
+# WithLab — 과일 발주 관리 시스템
 
-> 과일 발주 관리 시스템. 쿠팡/토스 주문 엑셀 → 공급처별 발주서 자동 생성 → 운송장 매칭.
+쿠팡/토스 플랫폼 주문을 업로드하여 공급처별 발주서를 자동 생성하고, 운송장을 매칭하는 내부 관리자 시스템.
 
-## 이 패키지가 포함하는 것
+## 주요 기능
 
-이 zip은 **Claude Code로 단계별 개발을 시작할 수 있는 스펙 + 컨텍스트 문서 모음**입니다.
-실제 코드는 들어있지 않습니다. Claude Code가 이 문서들을 읽고 코드를 생성합니다.
+- **주문 업로드**: 쿠팡/토스 주문 엑셀 파싱 + 중복/오류 감지
+- **공급처 배정**: 품목별 자동 배정 + 수동 조정
+- **발주서 생성**: 공급처 양식 템플릿 기반 엑셀 자동 생성
+- **운송장 매칭**: 공급처 운송장 → 플랫폼 양식 자동 변환
+- **매핑 관리**: 공급처, 품목, 상품명, 택배사 매핑
 
-## 시작하기
+## 기술 스택
 
-1. zip 압축 해제 후 폴더 위치를 작업할 곳으로 옮긴다 (예: `~/projects/withlab-ops`)
-2. `git init` + 첫 커밋 (`docs: spec 문서 + Claude Code 컨텍스트 추가`)
-3. Claude Code에서 해당 폴더를 연다
-4. Claude Code에게 다음과 같이 지시:
-   ```
-   docs/specs/PHASE_00_프로젝트_셋업.md 를 읽고 작업 목록 순서대로 구현해줘.
-   완료되면 /project:verify 실행해서 검증해줘.
-   ```
+- **Frontend**: React 19 + TypeScript (Vite)
+- **Styling**: Tailwind CSS v4 + shadcn/ui
+- **Backend**: Supabase (PostgreSQL + Auth + Storage)
+- **배포**: Vercel
 
-## 워크플로우
+## 로컬 실행
 
-```
-Phase 0 구현 → /project:verify → ✅ 통과
-              ↓
-              Claude Design으로 시각 디자인 (외부 작업)
-              ↓
-              docs/REF_디자인_시스템.md 작성 + @theme 토큰 교체
-              ↓
-              /project:next-phase → Phase 1 시작
-              ↓
-              (Phase 1 스펙은 이 채팅으로 돌아와서 추가로 받기)
-```
+```bash
+# Node.js 20 이상 필요
+nvm use
 
-## 파일 구조
+# 의존성 설치
+npm install
 
-```
-withlab-ops/
-├── CLAUDE.md                      ← 루트 컨텍스트 (Claude Code 자동 참조)
-├── .claude/commands/              ← 슬래시 커맨드 6개
-├── docs/
-│   ├── STATUS.md                  ← 진행 상태 추적
-│   ├── REF_*.md                   ← 참조 문서 3개 (데이터모델/엑셀구조/DB스키마)
-│   └── specs/PHASE_00_*.md        ← 현재 단계 스펙
-└── src/                           ← 폴더별 CLAUDE.md (총 10개)
-    ├── components/, hooks/, pages/, types/, utils/
-    └── lib/{supabase,schemas,parsers,matching,generators}/
+# 환경변수 설정
+cp .env.example .env
+# .env 파일에 Supabase URL과 Anon Key 입력
+
+# 개발 서버
+npm run dev
 ```
 
-## 슬래시 커맨드 목록
+## 스크립트
 
-| 커맨드 | 설명 |
+| 명령어 | 설명 |
 |--------|------|
-| `/project:verify` | 현재 단계 스펙 대비 종합 검증 |
-| `/project:spec-reviewer` | 스펙 vs 구현 심층 비교 |
-| `/project:next-phase` | 다음 단계로 전환 + STATUS.md 갱신 |
-| `/project:check-types` | 타입 정합성 검증 |
-| `/project:check-excel` | 엑셀 파서 검증 |
-| `/project:generate-test` | 테스트 자동 생성 |
+| `npm run dev` | 개발 서버 (http://localhost:5173) |
+| `npm run build` | 프로덕션 빌드 |
+| `npm run preview` | 빌드 결과 로컬 미리보기 |
+| `npm run typecheck` | 타입 체크 |
+| `npm run test:run` | 테스트 실행 |
+| `npm run lint` | ESLint |
+| `npm run format` | Prettier 포맷팅 |
 
-상세는 `CLAUDE.md`와 각 커맨드 파일 참조.
+## 환경변수
+
+| 변수 | 설명 |
+|------|------|
+| `VITE_SUPABASE_URL` | Supabase 프로젝트 URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase 퍼블릭 anon 키 |
+
+## 프로젝트 구조
+
+```
+src/
+├── components/
+│   ├── ui/           # shadcn/ui 공통 컴포넌트
+│   └── layout/       # 사이드바, 페이지 헤더
+├── pages/
+│   ├── orders/       # 발주서 (업로드 → 배정 → 다운로드)
+│   ├── tracking/     # 운송장 (업로드 → 매칭 → 출력)
+│   ├── mapping/      # 매핑 관리
+│   └── settings/     # 양식 관리
+├── lib/
+│   ├── parsers/      # 엑셀 파싱
+│   ├── matching/     # 운송장 매칭 엔진
+│   ├── generators/   # 엑셀 생성
+│   ├── schemas/      # Zod 스키마
+│   └── supabase/     # Supabase 클라이언트
+├── hooks/            # 커스텀 훅
+├── types/            # TypeScript 타입
+└── utils/            # 유틸 함수
+```
+
+## 배포
+
+Vercel에 연결하여 `main` 브랜치 푸시 시 자동 배포.
+
+환경변수는 Vercel 프로젝트 Settings → Environment Variables에서 설정.
