@@ -1,0 +1,163 @@
+/* ───── Page head with action button ───── */
+.page-head{
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+
+/* ───── Filter row variant ───── */
+.frow__count{
+  font-size: 12.5px;
+  color: var(--t-mute);
+  margin-left: 4px;
+}
+.t-warn{ color: #C46A00; }
+
+/* ───── Suppliers table ───── */
+.stbl{
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-1);
+}
+.stbl__head, .stbl__row{
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1.5fr 110px 110px 80px;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 20px;
+  font-size: 13px;
+}
+.stbl__head{
+  background: #FAFBFC;
+  color: var(--t-mute);
+  font-size: 12px; font-weight: 600;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--line);
+}
+.stbl__row{ border-top: 1px solid var(--line); transition: background .12s ease; }
+.stbl__row:hover{ background: #FAFBFC; }
+.stbl__row:first-of-type{ border-top: none; }
+
+.sh-name{ display: flex; align-items: center; gap: 12px; min-width: 0; }
+.sname{ font-weight: 600; font-size: 14px; color: var(--t-strong); }
+.ssub{ font-size: 11.5px; color: var(--t-mute); margin-top: 2px; }
+
+.sh-memo{
+  font-size: 12.5px; color: var(--t-mid);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.sh-actions{ display: flex; gap: 4px; justify-content: flex-end; }
+
+.pill{
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11.5px; font-weight: 700;
+  padding: 4px 10px; border-radius: 999px;
+  letter-spacing: 0.01em;
+}
+.pill__dot{ width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+.pill--ok{   background: #E1F4E8; color: #118D4F; }
+.pill--mute{ background: #F2F4F6; color: var(--t-mute); }
+
+/* ───── Input with leading icon ───── */
+.ipt-with-icon{
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px;
+  height: 42px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: white;
+  transition: border-color .12s, box-shadow .12s;
+}
+.ipt-with-icon:focus-within{ border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-50); }
+.ipt-with-icon input{
+  flex: 1; border: none; outline: none; background: transparent;
+  font-size: 14px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--t-strong);
+}
+.ipt-with-icon input::placeholder{ color: var(--t-faint); font-family: 'Pretendard', sans-serif; }
+
+.ipt--area{
+  height: auto;
+  padding: 12px 14px;
+  resize: vertical;
+  font-family: 'Pretendard', sans-serif;
+  line-height: 1.5;
+}
+
+/* ───── Form-status callout in panel ───── */
+.formstat{
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px;
+  background: #FAFBFC;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.formstat__icon{
+  width: 32px; height: 32px; border-radius: 999px;
+  background: white;
+  border: 1px solid var(--line);
+  display: grid; place-items: center;
+  flex-shrink: 0;
+}
+.formstat__body{ flex: 1; }
+.formstat__title{ font-size: 13px; font-weight: 700; color: var(--t-strong); }
+.formstat__sub{ font-size: 11.5px; color: var(--t-mute); margin-top: 3px; line-height: 1.5; }
+.formstat__link{
+  font-size: 12px; font-weight: 700;
+  color: var(--blue);
+  text-decoration: none;
+  white-space: nowrap;
+  align-self: center;
+}
+.formstat__link:hover{ text-decoration: underline; }
+
+/* ───── Confirm modal ───── */
+.modal{
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 420px;
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  z-index: 91;
+  box-shadow: 0 24px 64px rgba(20,28,40,.24);
+  text-align: center;
+  animation: popIn .18s cubic-bezier(.2,.8,.4,1);
+}
+@keyframes popIn { from{transform: translate(-50%, -48%); opacity: 0} to{transform: translate(-50%, -50%); opacity: 1} }
+.modal__icon{
+  width: 56px; height: 56px; border-radius: 999px;
+  background: #FFF4E5;
+  display: grid; place-items: center;
+  margin: 0 auto 16px;
+}
+.modal__title{
+  font-size: 17px; font-weight: 700;
+  color: var(--t-strong);
+  letter-spacing: -0.01em;
+}
+.modal__body{
+  font-size: 13.5px;
+  color: var(--t-mid);
+  margin-top: 10px;
+  line-height: 1.55;
+}
+.modal__body b{ color: var(--t-strong); }
+.modal__foot{
+  display: flex; gap: 8px;
+  margin-top: 24px;
+  justify-content: center;
+}
+.modal__foot .ghostbtn,
+.modal__foot .btn{ flex: 1; }
+
+.btn--danger{
+  background: #FF3B30;
+  color: white;
+}
+.btn--danger:hover{ background: #E5342A; }

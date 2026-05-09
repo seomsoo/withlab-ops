@@ -1,0 +1,231 @@
+html, body { margin: 0; padding: 0; }
+body{
+  background: #F7F8FA;
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #191F28;
+  -webkit-font-smoothing: antialiased;
+}
+
+.loginpage{
+  position: relative;
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px 20px;
+  overflow: hidden;
+}
+.loginpage__bg{
+  position: absolute; inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.lblob{
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.5;
+}
+.lblob--1{
+  width: 480px; height: 480px;
+  background: #DCEAFE;
+  top: -160px; left: -120px;
+}
+.lblob--2{
+  width: 380px; height: 380px;
+  background: #E5EFFE;
+  bottom: -140px; right: -80px;
+}
+
+.loginpage__inner{
+  position: relative;
+  width: 100%;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 18px;
+}
+
+.logincard{
+  width: 100%;
+  max-width: 420px;
+  background: white;
+  border: 1px solid #ECEEF0;
+  border-radius: 20px;
+  padding: 36px 36px 32px;
+  box-shadow: 0 8px 24px rgba(20,28,40,.04), 0 1px 2px rgba(20,28,40,.04);
+}
+
+.logincard__brand{
+  display: flex; flex-direction: column; align-items: flex-start;
+  margin-bottom: 28px;
+}
+.loginlogo{
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.loginlogo__text{
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #191F28;
+}
+.logincard__sub{
+  font-size: 12.5px;
+  color: #8B95A1;
+  margin-top: 4px;
+  margin-left: 36px;
+}
+
+.logincard__welcome{ margin-bottom: 24px; }
+.logincard__title{
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #191F28;
+}
+.logincard__hint{
+  font-size: 13px;
+  color: #6B7684;
+  margin-top: 6px;
+  line-height: 1.55;
+}
+
+/* ───── Form ───── */
+.lform{ display: flex; flex-direction: column; gap: 16px; }
+
+.lfield{ display: flex; flex-direction: column; gap: 8px; }
+.lfield__lbl{
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #4E5968;
+}
+.lfield__link{
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #3182F6;
+  text-decoration: none;
+}
+.lfield__link:hover{ text-decoration: underline; }
+
+.lfield__ipt{
+  display: flex; align-items: center; gap: 10px;
+  height: 48px;
+  padding: 0 14px;
+  background: #F7F8FA;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition: all .15s ease;
+}
+.lfield__ipt:focus-within{
+  background: white;
+  border-color: #3182F6;
+  box-shadow: 0 0 0 4px rgba(49,130,246,.12);
+}
+.lfield__ipt input{
+  flex: 1;
+  border: none; outline: none; background: transparent;
+  font-size: 14.5px;
+  font-family: inherit;
+  color: #191F28;
+}
+.lfield__ipt input::placeholder{ color: #C9CDD2; }
+.lfield__toggle{
+  border: none; background: transparent;
+  color: #8B95A1;
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  display: grid; place-items: center;
+  cursor: pointer;
+}
+.lfield__toggle:hover{ background: #ECEEF0; color: #191F28; }
+
+/* ───── Checkbox ───── */
+.lcheck{
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px;
+  color: #4E5968;
+  cursor: pointer;
+  user-select: none;
+  margin-top: 2px;
+}
+.lcheck input{ display: none; }
+.lcheck__box{
+  width: 18px; height: 18px;
+  border-radius: 5px;
+  border: 1.5px solid #C9CDD2;
+  background: white;
+  display: grid; place-items: center;
+  transition: all .12s ease;
+}
+.lcheck input:checked + .lcheck__box{
+  background: #3182F6;
+  border-color: #3182F6;
+}
+.lcheck__text{ font-weight: 500; }
+
+/* ───── Buttons ───── */
+.lbtn{
+  width: 100%;
+  height: 50px;
+  border: none;
+  border-radius: 12px;
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  background: #3182F6;
+  color: white;
+  cursor: pointer;
+  transition: all .15s ease;
+  margin-top: 8px;
+}
+.lbtn:hover:not(:disabled){ background: #1B64DA; }
+.lbtn:disabled{
+  background: #E5E8EB;
+  color: #C9CDD2;
+  cursor: not-allowed;
+}
+.lbtn--ghost{
+  background: white;
+  color: #191F28;
+  border: 1px solid #E5E8EB;
+  margin-top: 0;
+}
+.lbtn--ghost:hover{ border-color: #C9CDD2; background: #FAFBFC; }
+
+/* ───── Divider ───── */
+.logincard__divider{
+  display: flex; align-items: center; gap: 14px;
+  margin: 24px 0 16px;
+  font-size: 11.5px;
+  color: #8B95A1;
+  font-weight: 600;
+}
+.logincard__divider::before,
+.logincard__divider::after{
+  content: ''; flex: 1; height: 1px; background: #ECEEF0;
+}
+
+/* ───── Footer ───── */
+.logincard__foot{
+  text-align: center;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid #F2F4F6;
+  font-size: 12.5px;
+  color: #6B7684;
+}
+.logincard__foot a{
+  color: #3182F6;
+  font-weight: 700;
+  text-decoration: none;
+  margin-left: 6px;
+}
+.logincard__foot a:hover{ text-decoration: underline; }
+
+.loginpage__copy{
+  font-size: 11.5px;
+  color: #8B95A1;
+  text-align: center;
+}
+.loginpage__copy a{
+  color: #6B7684;
+  text-decoration: none;
+}
+.loginpage__copy a:hover{ color: #3182F6; }
