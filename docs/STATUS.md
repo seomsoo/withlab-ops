@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-4
+5
 
 ## 진행 단계 전체 흐름
 
@@ -129,20 +129,34 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 - **이슈/메모**: -
 
 ### Phase 4: 공급처 배정 + 발주서
-- **상태**: 🔵 진행중
+- **상태**: ✅ 완료
 - **시작일**: 2026-05-10
-- **스펙 문서**: 미작성
-- **주요 범위**: 자동 배정 로직, 미분류 처리, 수량 분배(라인 단위), 오늘만변경/기본매핑변경, 공급처 발주서 양식 관리, 발주서 엑셀 생성, 발주 완료 처리
+- **완료일**: 2026-05-10
+- **스펙 문서**: `docs/specs/PHASE_04_공급처_배정_발주서.md`
+- **검증 결과**: `docs/specs/PHASE_04-verify.md` — ✅ 통과 (P1: 3건 수정 완료, P2: 7건 수정 완료 + 1건 수용 안 함)
 - **선행 조건**: Phase 3 ✅
-- **산출물 예정**:
-  - 자동 배정 로직 + 테스트
-  - 공급처 배정 페이지 (아코디언 그룹 UI)
-  - 양식 관리 페이지 (템플릿 업로드 + 컬럼 매핑 UI)
-  - purchaseOrderGenerator.ts (ExcelJS 기반)
-  - 발주서 다운로드 + 완료 처리 페이지
+- **산출물**:
+  - [x] DB 마이그레이션 2건 (allocations.name_mapping_applied, complete_order_session RPC)
+  - [x] `src/lib/allocation/autoAllocator.ts` — 자동 배정 순수 함수 + 와일드카드 매칭
+  - [x] `src/lib/allocation/autoAllocator.test.ts` — 19 테스트 전체 통과
+  - [x] `src/lib/generators/purchaseOrderGenerator.ts` — ExcelJS 기반 발주서 생성
+  - [x] `src/lib/generators/purchaseOrderGenerator.test.ts` — 9 테스트 전체 통과
+  - [x] `src/lib/supabase/allocations.ts` — 배정 CRUD 6개 함수
+  - [x] `src/lib/supabase/supplierTemplates.ts` — 양식 CRUD 7개 함수
+  - [x] `src/lib/supabase/productMappings.ts` — switchDefaultSupplier, createAutoProductMapping 추가
+  - [x] `src/hooks/useAllocation.ts` — 자동 배정, 공급처 변경(NameMapping 재조회 + isDefault 전환), 미분류 배정(product_mapping 자동 추가), 분배
+  - [x] `src/hooks/useSupplierTemplate.ts` — 양식 저장/삭제 + Storage 보상 처리
+  - [x] `src/hooks/usePurchaseOrder.ts` — 다운로드, 전체 다운로드, 검증, 완료 처리
+  - [x] `src/pages/orders/SupplierAllocation.tsx` — 아코디언 그룹, 필터, 분배 모달, 공급처 변경 다이얼로그
+  - [x] `src/pages/orders/OrderDownload.tsx` — 공급처별 카드, 전체 다운로드, 완료 확인 다이얼로그
+  - [x] `src/pages/settings/SupplierTemplate.tsx` — 양식 등록/수정, 시트 변경 매핑 갱신
+  - [x] `src/components/OrderTabs.tsx` — 3단계 탭 네비게이션
+  - [x] `src/utils/download.ts` — downloadBlob + 파일명 생성
+- **이슈/메모**: useEffect 의존성 구조는 running 가드로 방어 — 현 상태 유지
 
 ### Phase 5: 운송장 매칭 + 출력
-- **상태**: ⬜ 대기
+- **상태**: 🔵 진행중
+- **시작일**: 2026-05-10
 - **스펙 문서**: 미작성
 - **주요 범위**: 운송장 파싱(A/B업체), 매칭 엔진, 수동 매칭 UI, 택배사 변환, 플랫폼 운송장 양식 관리, 플랫폼 엑셀 출력
 - **선행 조건**: Phase 4 ✅

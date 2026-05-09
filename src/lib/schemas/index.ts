@@ -69,6 +69,7 @@ export const allocationSchema = z.object({
   allocatedQuantity: z.number().int().min(1),
   status: allocationStatusSchema,
   isTemporaryOverride: z.boolean(),
+  nameMappingApplied: z.boolean(),
   createdAt: z.string(),
   orderedAt: z.string().optional(),
 })
@@ -341,6 +342,7 @@ export type AllocationRow = {
   allocated_quantity: number
   status: string
   is_temporary_override: boolean
+  name_mapping_applied: boolean
   created_at: string
   ordered_at: string | null
 }
@@ -515,6 +517,7 @@ export function toAllocation(row: AllocationRow) {
     // as 사용 사유: DB text 컬럼 → 유니온 리터럴, check 제약으로 값 보장
     status: row.status as 'pending' | 'ordered',
     isTemporaryOverride: row.is_temporary_override,
+    nameMappingApplied: row.name_mapping_applied,
     createdAt: row.created_at,
     orderedAt: row.ordered_at ?? undefined,
   }

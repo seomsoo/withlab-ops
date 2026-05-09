@@ -8,6 +8,8 @@ import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
 import WorkSessionSelector from '@/pages/orders/WorkSessionSelector'
 import OrderUpload from '@/pages/orders/OrderUpload'
+import SupplierAllocation from '@/pages/orders/SupplierAllocation'
+import OrderDownload from '@/pages/orders/OrderDownload'
 import Tracking from '@/pages/tracking/Tracking'
 import SupplierManage from '@/pages/mapping/SupplierManage'
 import ProductMapping from '@/pages/mapping/ProductMapping'
@@ -15,22 +17,6 @@ import NameMapping from '@/pages/mapping/NameMapping'
 import CourierMapping from '@/pages/mapping/CourierMapping'
 import SupplierTemplate from '@/pages/settings/SupplierTemplate'
 import PlatformTemplate from '@/pages/settings/PlatformTemplate'
-
-function AllocationPlaceholder() {
-  return (
-    <div className="py-20 text-center text-t-mute">
-      공급처 배정 — Phase 4에서 구현됩니다
-    </div>
-  )
-}
-
-function DownloadPlaceholder() {
-  return (
-    <div className="py-20 text-center text-t-mute">
-      발주서 다운로드 — Phase 4에서 구현됩니다
-    </div>
-  )
-}
 
 export function AppRoutes() {
   return (
@@ -46,11 +32,11 @@ export function AppRoutes() {
           <Route path="/orders/:sessionId/upload" element={<OrderUpload />} />
           <Route
             path="/orders/:sessionId/allocation"
-            element={<AllocationPlaceholder />}
+            element={<SupplierAllocation />}
           />
           <Route
             path="/orders/:sessionId/download"
-            element={<DownloadPlaceholder />}
+            element={<OrderDownload />}
           />
           <Route path="/tracking" element={<Tracking />} />
 

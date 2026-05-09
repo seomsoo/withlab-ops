@@ -61,6 +61,7 @@ export type Allocation = {
   allocatedQuantity: number
   status: AllocationStatus
   isTemporaryOverride: boolean
+  nameMappingApplied: boolean
   createdAt: string
   orderedAt?: string
 }
@@ -110,6 +111,8 @@ export type PurchaseOrderItem = {
   deliveryMessage: string
   buyerName: string
   buyerPhone: string
+
+  nameMappingApplied: boolean
 }
 
 export type StandardTrackingExport = {
