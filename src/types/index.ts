@@ -226,6 +226,12 @@ export type OrderImport = {
   workSessionId: string
   platform: Platform
   fileName: string
+  totalRows: number
+  validCount: number
+  invalidCount: number
+  duplicateCount: number
+  invalidRows: InvalidRow[]
+  duplicateRows: DuplicateRow[]
   uploadedBy?: string
   uploadedAt: string
 }
@@ -240,14 +246,33 @@ export type TrackingImport = {
 }
 
 export type InvalidRow = {
-  rowIndex: number
+  rowNumber: number
   reason: string
-  raw: Record<string, unknown>
+  rawData: unknown[]
+}
+
+export type DuplicateRow = {
+  rowNumber: number
+  reason: string
+  matchingKey: string
+  firstRowNumber: number
+  rawData: unknown[]
+}
+
+export type ParseMeta = {
+  platform: Platform
+  totalRows: number
+  skippedRows: number
+  validRows: number
+  invalidRows: number
+  duplicateRows: number
 }
 
 export type ParseResult = {
   orders: StandardOrder[]
   invalidRows: InvalidRow[]
+  duplicateRows: DuplicateRow[]
+  meta: ParseMeta
 }
 
 export type TrackingParseResult = {

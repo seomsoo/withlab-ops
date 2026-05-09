@@ -245,11 +245,31 @@ export const workSessionSchema = z.object({
   completedAt: z.string().optional(),
 })
 
+export const invalidRowSchema = z.object({
+  rowNumber: z.number().int(),
+  reason: z.string(),
+  rawData: z.array(z.unknown()),
+})
+
+export const duplicateRowSchema = z.object({
+  rowNumber: z.number().int(),
+  reason: z.string(),
+  matchingKey: z.string(),
+  firstRowNumber: z.number().int(),
+  rawData: z.array(z.unknown()),
+})
+
 export const orderImportSchema = z.object({
   id: uuidString,
   workSessionId: uuidString,
   platform: platformSchema,
   fileName: z.string(),
+  totalRows: z.number().int(),
+  validCount: z.number().int(),
+  invalidCount: z.number().int(),
+  duplicateCount: z.number().int(),
+  invalidRows: z.array(invalidRowSchema),
+  duplicateRows: z.array(duplicateRowSchema),
   uploadedBy: uuidString.optional(),
   uploadedAt: z.string(),
 })
@@ -347,6 +367,12 @@ export type OrderImportRow = {
   work_session_id: string
   platform: string
   file_name: string
+  total_rows: number
+  valid_count: number
+  invalid_count: number
+  duplicate_count: number
+  invalid_rows: unknown
+  duplicate_rows: unknown
   uploaded_by: string | null
   uploaded_at: string
 }
@@ -519,6 +545,12 @@ export function toOrderImport(row: OrderImportRow) {
     // as 사용 사유: DB text 컬럼 → 유니온 리터럴, check 제약으로 값 보장
     platform: row.platform as 'coupang' | 'toss',
     fileName: row.file_name,
+    totalRows: row.total_rows,
+    validCount: row.valid_count,
+    invalidCount: row.invalid_count,
+    duplicateCount: row.duplicate_count,
+    invalidRows: z.array(invalidRowSchema).parse(row.invalid_rows),
+    duplicateRows: z.array(duplicateRowSchema).parse(row.duplicate_rows),
     uploadedBy: row.uploaded_by ?? undefined,
     uploadedAt: row.uploaded_at,
   }

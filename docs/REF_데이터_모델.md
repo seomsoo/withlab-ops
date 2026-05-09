@@ -283,17 +283,59 @@ type WorkSession = {
 
 ---
 
-## 8. ParseResult (파싱 결과)
+## 8. OrderImport (주문 임포트)
+```ts
+type OrderImport = {
+  id: string
+  workSessionId: string
+  platform: Platform
+  fileName: string               // 업로드한 엑셀 파일명
+  totalRows: number              // valid + invalid + duplicate
+  validCount: number
+  invalidCount: number
+  duplicateCount: number
+  invalidRows: InvalidRow[]      // 오류 행 상세 (jsonb)
+  duplicateRows: DuplicateRow[]  // 중복 행 상세 (jsonb)
+  uploadedBy?: string
+  uploadedAt: string
+}
+```
+
+DB 제약: `unique(work_session_id, platform)` — 작업건당 플랫폼별 1파일만.
+`order_imports → orders`: `on delete cascade` — 재업로드 시 소속 orders 연쇄 삭제.
+
+---
+
+## 9. ParseResult (파싱 결과)
 ```ts
 type InvalidRow = {
-  rowIndex: number             // 엑셀 행 번호
+  rowNumber: number            // 엑셀 행 번호 (1-based)
   reason: string               // "수량 파싱 실패" 등
-  raw: Record<string, unknown>
+  rawData: unknown[]           // 해당 행의 셀 배열
+}
+
+type DuplicateRow = {
+  rowNumber: number            // 중복 행의 엑셀 행 번호
+  reason: string               // "중복 주문 (최초 행: N)"
+  matchingKey: string          // 중복된 matchingKey
+  firstRowNumber: number       // 최초 등장 행 번호
+  rawData: unknown[]           // 해당 행의 셀 배열
+}
+
+type ParseMeta = {
+  platform: Platform
+  totalRows: number            // valid + invalid + duplicate (빈 행 스킵 제외)
+  skippedRows: number          // 빈 행 스킵 수
+  validRows: number
+  invalidRows: number
+  duplicateRows: number
 }
 
 type ParseResult = {
-  orders: StandardOrder[]
+  orders: StandardOrder[]      // 중복 제거된 정상 주문만
   invalidRows: InvalidRow[]
+  duplicateRows: DuplicateRow[]
+  meta: ParseMeta
 }
 ```
 

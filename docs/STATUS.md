@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-2
+4
 
 ## 진행 단계 전체 흐름
 
@@ -75,7 +75,7 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 - **이슈/메모**: shadcn 기본 토큰(bg-popover 등) 미정의 → 권장 수정
 
 ### Phase 2: 매핑 관리
-- **상태**: ✅ 검증 통과
+- **상태**: ✅ 완료
 - **시작일**: 2026-05-09
 - **완료일**: 2026-05-10
 - **스펙 문서**: `docs/specs/PHASE_02_매핑_관리.md`
@@ -98,19 +98,39 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 - **이슈/메모**: -
 
 ### Phase 3: 주문 업로드 + 파싱
-- **상태**: ⬜ 대기
-- **스펙 문서**: 미작성
-- **주요 범위**: 작업건(WorkSession) 관리, 쿠팡/토스 주문 엑셀 파싱, 주문 업로드 UI, 재업로드 처리, 중복 감지, 플랫폼 자동 감지
+- **상태**: ✅ 완료
+- **시작일**: 2026-05-10
+- **완료일**: 2026-05-10
+- **스펙 문서**: `docs/specs/PHASE_03_주문_업로드_파싱.md`
+- **검증 결과**: `docs/specs/PHASE_03-verify.md` — ✅ 통과 (P1: 0건 수용안함, P2: 2건 수정 완료, YELLOW: 2건 수정 완료)
 - **선행 조건**: Phase 2 ✅
-- **산출물 예정**:
-  - coupangParser.ts + 테스트
-  - tossParser.ts + 테스트
-  - platformDetector.ts
-  - WorkSession 관리 (생성/선택/상태 전이)
-  - 주문 업로드 페이지 UI (드래그앤드롭 + 파싱 결과 표시)
+- **산출물**:
+  - [x] DB 마이그레이션 (order_imports 컬럼 추가)
+  - [x] ParseResult 타입 확장 (DuplicateRow, ParseMeta)
+  - [x] OrderImport 타입/스키마/Row 타입/변환 함수 업데이트
+  - [x] `src/lib/supabase/workSessions.ts` — CRUD 4함수
+  - [x] `src/lib/supabase/orders.ts` — createOrderImport, saveOrders, getOrders, getOrderImports, deleteOrderImport
+  - [x] `src/lib/parsers/coupangParser.ts` — Delivery 시트, 40컬럼, 중복 감지
+  - [x] `src/lib/parsers/tossParser.ts` — 주문내역 시트, 1~4행 스킵, matchingKey=주문상품번호
+  - [x] `src/lib/parsers/platformDetector.ts` — 쿠팡/토스 자동 감지
+  - [x] `src/lib/parsers/coupangParser.test.ts` — 16 테스트
+  - [x] `src/lib/parsers/tossParser.test.ts` — 13 테스트
+  - [x] `src/lib/parsers/platformDetector.test.ts` — 3 테스트
+  - [x] `src/hooks/useWorkSessions.ts` — 목록 조회 + 생성
+  - [x] `src/hooks/useWorkSession.ts` — 개별 조회 (URL 기반)
+  - [x] `src/hooks/useOrderUpload.ts` — prepare/commit 패턴
+  - [x] `src/pages/orders/WorkSessionSelector.tsx` — 작업건 생성/선택
+  - [x] `src/pages/orders/OrderUpload.tsx` — 업로드 카드, 파싱 결과, 주문 테이블, CTA
+  - [x] 라우팅 업데이트 (sessionId 기반 동적 라우트 4개)
+  - [x] `npm run build` 통과
+  - [x] `npm run typecheck` 통과
+  - [x] `npm run lint` 통과
+  - [x] `npm run test:run` 전체 통과 (47 tests)
+- **이슈/메모**: -
 
 ### Phase 4: 공급처 배정 + 발주서
-- **상태**: ⬜ 대기
+- **상태**: 🔵 진행중
+- **시작일**: 2026-05-10
 - **스펙 문서**: 미작성
 - **주요 범위**: 자동 배정 로직, 미분류 처리, 수량 분배(라인 단위), 오늘만변경/기본매핑변경, 공급처 발주서 양식 관리, 발주서 엑셀 생성, 발주 완료 처리
 - **선행 조건**: Phase 3 ✅
