@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+.vercel/
+
+# Claude Code local settings (contains credentials)
+.claude/settings.local.json
+
+# Supabase CLI local state
+supabase/.temp/

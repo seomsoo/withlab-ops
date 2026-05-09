@@ -331,6 +331,7 @@ UI 변경이 있는 Phase에만.
 ```
 
 #### 머지 전 체크리스트 (셀프 리뷰)
+- [ ] Codex 코드리뷰 실시 (P1 지적사항 모두 수정)
 - [ ] `/project:verify` 종합 판정이 ✅
 - [ ] `npm run build` 성공
 - [ ] `npm run test -- --run` 모든 테스트 통과
@@ -422,12 +423,15 @@ Phase 1 시작
 1. docs/specs/PHASE_XX_*.md 스펙 문서를 읽는다
 2. 관련 REF 문서(docs/REF_*.md)와 폴더별 CLAUDE.md를 참조한다
 3. 스펙에 명시된 작업 목록을 순서대로 구현한다
-4. 구현 완료 후 /project:verify 실행
+4. Codex 코드리뷰 실행 (/codex:rescue 또는 사용자가 직접)
+   → P1/P2 지적사항을 확인하고 수정한다
+5. /project:verify 실행
    → 스펙 누락, 스코프 크립, 컨벤션 위반, 빌드 에러를 자동 검증
+   → Codex 코드리뷰 결과도 verify 리포트에 포함
    → 결과가 docs/specs/PHASE_XX-verify.md에 저장됨
-5. 모든 항목 ✅ 통과할 때까지 수정한다
-6. /project:next-phase 실행 → STATUS.md 갱신 → 다음 단계 브리핑
-7. 다음 Phase 스펙 문서를 받아서 반복한다
+6. 모든 항목 ✅ 통과할 때까지 수정한다
+7. /project:next-phase 실행 → STATUS.md 갱신 → 다음 단계 브리핑
+8. 다음 Phase 스펙 문서를 받아서 반복한다
 ```
 
 ### 원칙
