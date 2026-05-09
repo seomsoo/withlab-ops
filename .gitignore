@@ -11,3 +11,6 @@ dist/
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Playwright MCP snapshots
+.playwright-mcp/
