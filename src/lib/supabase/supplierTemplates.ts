@@ -84,7 +84,8 @@ export async function uploadTemplateFile(
   file: File
 ): Promise<string> {
   const timestamp = Date.now()
-  const path = `supplier-templates/${supplierId}/${timestamp}_${file.name}`
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'xlsx'
+  const path = `supplier-templates/${supplierId}/${timestamp}.${ext}`
 
   const { error } = await supabase.storage
     .from('templates')

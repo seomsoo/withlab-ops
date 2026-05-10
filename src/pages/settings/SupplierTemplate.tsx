@@ -145,7 +145,7 @@ export default function SupplierTemplate() {
         toast.error(err instanceof Error ? err.message : '파일 읽기 실패')
       }
     },
-    [headerRow]
+    [headerRow, buildMappingsFromSheet]
   )
 
   const handleEdit = (template: SupplierTemplateType) => {

@@ -280,6 +280,12 @@ export const trackingImportSchema = z.object({
   workSessionId: uuidString,
   sourceSupplierId: uuidString,
   fileName: z.string(),
+  totalRows: z.number().int(),
+  validCount: z.number().int(),
+  invalidCount: z.number().int(),
+  skippedRows: z.number().int(),
+  detectedCourier: z.string().optional(),
+  invalidRows: z.array(invalidRowSchema),
   uploadedBy: uuidString.optional(),
   uploadedAt: z.string(),
 })
@@ -384,6 +390,12 @@ export type TrackingImportRow = {
   work_session_id: string
   source_supplier_id: string
   file_name: string
+  total_rows: number
+  valid_count: number
+  invalid_count: number
+  skipped_rows: number
+  detected_courier: string | null
+  invalid_rows: unknown
   uploaded_by: string | null
   uploaded_at: string
 }
@@ -565,6 +577,12 @@ export function toTrackingImport(row: TrackingImportRow) {
     workSessionId: row.work_session_id,
     sourceSupplierId: row.source_supplier_id,
     fileName: row.file_name,
+    totalRows: row.total_rows,
+    validCount: row.valid_count,
+    invalidCount: row.invalid_count,
+    skippedRows: row.skipped_rows,
+    detectedCourier: row.detected_courier ?? undefined,
+    invalidRows: z.array(invalidRowSchema).parse(row.invalid_rows),
     uploadedBy: row.uploaded_by ?? undefined,
     uploadedAt: row.uploaded_at,
   }

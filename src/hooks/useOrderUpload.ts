@@ -36,11 +36,6 @@ export function useOrderUpload(workSessionId: string) {
 
   useEffect(() => {
     let alive = true
-    setCoupangImport(null)
-    setTossImport(null)
-    setCoupangParseResult(null)
-    setTossParseResult(null)
-    setOrders([])
     void (async () => {
       try {
         setLoading(true)
@@ -49,6 +44,12 @@ export function useOrderUpload(workSessionId: string) {
           getOrders(workSessionId),
         ])
         if (!alive) return
+
+        setCoupangImport(null)
+        setTossImport(null)
+        setCoupangParseResult(null)
+        setTossParseResult(null)
+        setOrders([])
 
         for (const imp of imports) {
           if (imp.platform === 'coupang') {

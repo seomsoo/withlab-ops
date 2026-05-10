@@ -4,8 +4,7 @@ import * as XLSX from 'xlsx'
 import { parseTossOrders } from './tossParser'
 
 function makeTossWorkbook(dataRows: unknown[][]): XLSX.WorkBook {
-  const row1 = ['토스 주문 데이터 안내문구']
-  const row2 = ['일시 정보', '', '', '주문 정보', '', '', '', '', '상품 정보']
+  const groupHeader = ['일시 정보', '', '', '주문 정보', '', '', '', '', '상품 정보']
   const header = [
     '주문일시', '주문번호', '주문상품번호', '주문상태', '발송기한',
     '택배사', '송장번호', '상품ID', '상품명', '상품 관리 코드',
@@ -14,7 +13,7 @@ function makeTossWorkbook(dataRows: unknown[][]): XLSX.WorkBook {
     '우편번호', '주문요청사항', '구매확정일', '희망배송일', '발송처리일시',
     '배송완료일시', '취소일시', '주문금액', '배송비 묶음 번호', '배송비 합계',
   ]
-  const row4 = [
+  const editableRow = [
     '수정 불가', '수정 불가', '수정 불가', '수정 불가', '수정 불가',
     '수정 가능', '수정 가능', '수정 불가', '수정 불가', '수정 불가',
     '수정 불가', '수정 불가', '수정 불가', '수정 불가', '수정 불가',
@@ -22,7 +21,7 @@ function makeTossWorkbook(dataRows: unknown[][]): XLSX.WorkBook {
     '수정 불가', '수정 불가', '수정 불가', '수정 불가', '수정 불가',
     '수정 불가', '수정 불가', '수정 불가', '수정 불가', '수정 불가',
   ]
-  const aoa = [row1, row2, header, row4, ...dataRows]
+  const aoa = [groupHeader, header, editableRow, ...dataRows]
   const ws = XLSX.utils.aoa_to_sheet(aoa)
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, '주문내역')
@@ -111,10 +110,10 @@ describe('parseTossOrders', () => {
     expect(order.matchingKey).toBe('ITEM-200')
   })
 
-  it('정상: 1~4행 스킵, 5행부터 데이터 파싱', () => {
+  it('정상: 1~3행 스킵, 4행부터 데이터 파싱', () => {
     const wb = makeTossWorkbook([makeRow()])
     const result = parseTossOrders(wb)
-    expect(result.orders[0]!.rawRowNumber).toBe(5)
+    expect(result.orders[0]!.rawRowNumber).toBe(4)
   })
 
   it('정상: 하이픈 없는 전화번호 처리', () => {
@@ -133,14 +132,14 @@ describe('parseTossOrders', () => {
     expect(result.orders[0]!.rawValues).toHaveLength(30)
   })
 
-  it('정상: rawRowNumber는 5부터 시작', () => {
+  it('정상: rawRowNumber는 4부터 시작', () => {
     const wb = makeTossWorkbook([
       makeRow({ '주문상품번호': 'A001' }),
       makeRow({ '주문상품번호': 'A002' }),
     ])
     const result = parseTossOrders(wb)
-    expect(result.orders[0]!.rawRowNumber).toBe(5)
-    expect(result.orders[1]!.rawRowNumber).toBe(6)
+    expect(result.orders[0]!.rawRowNumber).toBe(4)
+    expect(result.orders[1]!.rawRowNumber).toBe(5)
   })
 
   it('정상: 주문번호 같고 주문상품번호 다른 2건은 중복 아님 (별개 주문 라인)', () => {

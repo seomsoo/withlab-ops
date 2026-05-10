@@ -155,17 +155,32 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 - **이슈/메모**: useEffect 의존성 구조는 running 가드로 방어 — 현 상태 유지
 
 ### Phase 5: 운송장 매칭 + 출력
-- **상태**: 🔵 진행중
+- **상태**: ✅ 완료
 - **시작일**: 2026-05-10
-- **스펙 문서**: 미작성
-- **주요 범위**: 운송장 파싱(A/B업체), 매칭 엔진, 수동 매칭 UI, 택배사 변환, 플랫폼 운송장 양식 관리, 플랫폼 엑셀 출력
+- **완료일**: 2026-05-10
+- **스펙 문서**: `docs/specs/PHASE_05_운송장_매칭_출력.md`
+- **검증 결과**: `docs/specs/PHASE_05-verify.md` — ✅ 통과
 - **선행 조건**: Phase 4 ✅
-- **산출물 예정**:
-  - trackingParser.ts + 테스트
-  - matchingEngine.ts + 테스트
-  - 운송장 업로드/매칭 결과/플랫폼 다운로드 3개 페이지
-  - trackingExportGenerator.ts (원본 양식 보존 출력)
-  - 플랫폼 운송장 양식 관리 페이지
+- **산출물**:
+  - [x] DB 마이그레이션 (tracking_imports ALTER)
+  - [x] `src/lib/parsers/trackingParser.ts` — A/B업체 운송장 파싱 + 테스트
+  - [x] `src/lib/matching/matchingEngine.ts` — matchingKey 기반 매칭 + 테스트
+  - [x] `src/lib/matching/courierConverter.ts` — 택배사 변환 + 테스트
+  - [x] `src/lib/generators/trackingExportGenerator.ts` — 원본 양식 보존 출력 + 테스트
+  - [x] `src/lib/supabase/trackings.ts` — 운송장 CRUD API
+  - [x] `src/lib/supabase/platformTemplates.ts` — 플랫폼 양식 CRUD API
+  - [x] `src/hooks/useTrackingUpload.ts` — 운송장 업로드 훅
+  - [x] `src/hooks/useTrackingMatch.ts` — 매칭 실행/수동매칭 훅
+  - [x] `src/hooks/useTrackingExport.ts` — 플랫폼 출력 훅
+  - [x] `src/hooks/usePlatformTemplate.ts` — 플랫폼 양식 관리 훅
+  - [x] `src/pages/tracking/TrackingUpload.tsx` — 운송장 업로드 페이지
+  - [x] `src/pages/tracking/TrackingMatchResult.tsx` — 매칭 결과 페이지
+  - [x] `src/pages/tracking/TrackingDownload.tsx` — 플랫폼 다운로드 페이지
+  - [x] `src/pages/settings/PlatformTemplate.tsx` — 플랫폼 운송장 양식 관리
+  - [x] `src/components/TrackingTabs.tsx` — 운송장 3단계 탭 네비게이션
+  - [x] 브라우저 테스트 완료 (Phase 1~5 전체)
+  - [x] 버그 수정: 자동배정 토스트 중복 (useRef 가드), Storage 파일명 sanitize
+- **이슈/메모**: -
 
 ### Phase 6: 대시보드 + 마무리
 - **상태**: ⬜ 대기

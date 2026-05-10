@@ -7,7 +7,7 @@ import type { StandardOrder, InvalidRow, DuplicateRow, ParseResult } from '@/typ
 
 const SHEET_NAME = '주문내역'
 const COLUMN_COUNT = 30
-const DATA_START_INDEX = 4
+const DATA_START_INDEX = 3
 
 const COL = {
   orderDate: 0,

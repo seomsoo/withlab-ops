@@ -22,7 +22,7 @@ export function detectPlatform(workbook: WorkBook): DetectedPlatform {
   const tossSheet = workbook.Sheets['주문내역']
   if (tossSheet) {
     const rows = sheetToRows(tossSheet)
-    const headerRow = rows[2]
+    const headerRow = rows[1]
     if (headerRow) {
       const headerValues = headerRow.map((v) => cellToString(v))
       const tossMarkers = ['주문일시', '주문번호', '주문상품번호']

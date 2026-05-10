@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import {
   AlertCircle,
@@ -76,6 +76,7 @@ export default function SupplierAllocation() {
   const [distributeDialog, setDistributeDialog] = useState<AllocationGroup | null>(null)
 
   const isReadonly = session?.status !== 'active'
+  const autoAllocRan = useRef(false)
 
   useEffect(() => {
     if (
@@ -83,8 +84,10 @@ export default function SupplierAllocation() {
       allocations.length === 0 &&
       unallocatedOrders.length > 0 &&
       !running &&
-      !isReadonly
+      !isReadonly &&
+      !autoAllocRan.current
     ) {
+      autoAllocRan.current = true
       runAutoAllocation()
     }
   }, [allocLoading, allocations.length, unallocatedOrders.length, running, isReadonly, runAutoAllocation])

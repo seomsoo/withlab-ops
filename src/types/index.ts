@@ -124,12 +124,14 @@ export type StandardTrackingExport = {
 
 export type TrackingExportItem = {
   trackingId: string
+  allocationId: string
   orderId: string
   orderNo: string
   orderItemNo: string
   matchingKey: string
   trackingCompany: string
   trackingNumber: string
+  courierMapped: boolean
   originalRow: Record<string, unknown>
   originalRowValues: unknown[]
   originalRowNumber: number
@@ -244,6 +246,12 @@ export type TrackingImport = {
   workSessionId: string
   sourceSupplierId: string
   fileName: string
+  totalRows: number
+  validCount: number
+  invalidCount: number
+  skippedRows: number
+  detectedCourier?: string
+  invalidRows: InvalidRow[]
   uploadedBy?: string
   uploadedAt: string
 }
@@ -278,9 +286,74 @@ export type ParseResult = {
   meta: ParseMeta
 }
 
+export type ParsedTracking = {
+  rawOrderKey: string
+  trackingCompany: string
+  trackingNumber: string
+  productName?: string
+  recipientName?: string
+  raw: Record<string, unknown>
+  rawRowNumber: number
+}
+
+export type TrackingParseMeta = {
+  totalRows: number
+  validCount: number
+  invalidCount: number
+  skippedRows: number
+  detectedCourier: string | null
+}
+
 export type TrackingParseResult = {
-  trackings: Tracking[]
+  trackings: ParsedTracking[]
   invalidRows: InvalidRow[]
+  meta: TrackingParseMeta
+}
+
+export type MatchedTracking = ParsedTracking & {
+  status: 'matched'
+  allocationId: string
+  orderId: string
+}
+
+export type UnmatchedTracking = ParsedTracking & {
+  status: 'unmatched'
+  invalidReason: string
+}
+
+export type DuplicatedTracking = ParsedTracking & {
+  status: 'duplicated'
+  invalidReason: string
+  allocationId: string
+}
+
+export type InvalidTracking = ParsedTracking & {
+  status: 'invalid'
+  invalidReason: string
+}
+
+export type MatchingResult = {
+  matched: MatchedTracking[]
+  unmatched: UnmatchedTracking[]
+  duplicated: DuplicatedTracking[]
+  invalid: InvalidTracking[]
+}
+
+export type TrackingStats = {
+  total: number
+  matched: number
+  unmatched: number
+  duplicated: number
+  invalid: number
+}
+
+export type CourierWarning = {
+  trackingId: string
+  platform: Platform
+  supplierId: string
+  supplierName: string
+  originalCourier: string
+  trackingNumber: string
 }
 
 export type OrderGroup = {

@@ -10,7 +10,10 @@ import WorkSessionSelector from '@/pages/orders/WorkSessionSelector'
 import OrderUpload from '@/pages/orders/OrderUpload'
 import SupplierAllocation from '@/pages/orders/SupplierAllocation'
 import OrderDownload from '@/pages/orders/OrderDownload'
-import Tracking from '@/pages/tracking/Tracking'
+import TrackingSessionSelector from '@/pages/tracking/TrackingSessionSelector'
+import TrackingUpload from '@/pages/tracking/TrackingUpload'
+import TrackingMatchResult from '@/pages/tracking/TrackingMatchResult'
+import TrackingDownload from '@/pages/tracking/TrackingDownload'
 import SupplierManage from '@/pages/mapping/SupplierManage'
 import ProductMapping from '@/pages/mapping/ProductMapping'
 import NameMapping from '@/pages/mapping/NameMapping'
@@ -38,7 +41,19 @@ export function AppRoutes() {
             path="/orders/:sessionId/download"
             element={<OrderDownload />}
           />
-          <Route path="/tracking" element={<Tracking />} />
+          <Route path="/tracking" element={<TrackingSessionSelector />} />
+          <Route
+            path="/tracking/:sessionId/upload"
+            element={<TrackingUpload />}
+          />
+          <Route
+            path="/tracking/:sessionId/match"
+            element={<TrackingMatchResult />}
+          />
+          <Route
+            path="/tracking/:sessionId/download"
+            element={<TrackingDownload />}
+          />
 
           <Route
             path="/mapping"
