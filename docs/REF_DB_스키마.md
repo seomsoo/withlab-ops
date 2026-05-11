@@ -8,7 +8,9 @@
 suppliers ─────────────┬───── product_mappings
     │                  ├───── name_mappings
     │                  ├───── courier_mappings
-    │                  └───── supplier_templates
+    │                  ├───── supplier_templates
+    │                  ├───── supplier_product_templates  ← Phase 7
+    │                  └───── supplier_products           ← Phase 7
     │
 work_sessions
     │
@@ -295,6 +297,98 @@ create table platform_templates (
 );
 
 -- ==========================================
+-- 13. supplier_product_templates (Phase 7 — 공급처 상품 양식)
+-- ==========================================
+create table supplier_product_templates (
+  id uuid primary key default gen_random_uuid(),
+  supplier_id uuid not null references suppliers(id) on delete cascade,
+
+  template_path text not null,
+  template_file_name text not null,
+  sheet_name text not null,
+  header_row integer not null default 1,
+  data_start_row integer not null default 2,
+
+  column_mappings jsonb not null,     -- SupplierProductColumnMapping[]
+
+  last_uploaded_file_name text,
+  last_uploaded_at timestamptz,
+  last_uploaded_count integer not null default 0,
+  last_invalid_count integer not null default 0,
+
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+
+  unique (supplier_id)
+);
+
+-- ==========================================
+-- 14. supplier_products (Phase 7 — 공급처 상품 목록)
+-- ==========================================
+create table supplier_products (
+  id uuid primary key default gen_random_uuid(),
+  supplier_id uuid not null references suppliers(id) on delete cascade,
+
+  product_code text,
+  product_name text not null,
+  option_name text not null default '',
+  price integer,
+  stock_status text not null default 'unknown'
+    check (stock_status in ('available', 'soldout', 'unknown')),
+  extra jsonb not null default '{}',
+
+  created_at timestamptz default now()
+);
+
+create index idx_sp_supplier on supplier_products(supplier_id);
+create index idx_sp_supplier_code on supplier_products(supplier_id, product_code);
+create index idx_sp_supplier_name_option
+  on supplier_products(supplier_id, product_name, option_name);
+
+-- RPC: atomic replace (DELETE all + INSERT new)
+create or replace function replace_supplier_products(
+  p_supplier_id uuid,
+  p_products jsonb
+) returns integer as $$
+declare
+  v_count integer;
+begin
+  delete from supplier_products where supplier_id = p_supplier_id;
+  insert into supplier_products (
+    supplier_id, product_code, product_name, option_name,
+    price, stock_status, extra
+  )
+  select
+    p_supplier_id,
+    coalesce(elem->>'productCode', ''),
+    elem->>'productName',
+    coalesce(elem->>'optionName', ''),
+    (elem->>'price')::integer,
+    coalesce(elem->>'stockStatus', 'unknown'),
+    coalesce(elem->'extra', '{}')
+  from jsonb_array_elements(p_products) as elem;
+  get diagnostics v_count = row_count;
+  return v_count;
+end;
+$$ language plpgsql;
+
+-- RPC: supplier_id별 상품 수 GROUP BY 조회
+create or replace function get_supplier_product_counts()
+returns table(supplier_id uuid, count bigint)
+language sql stable as $$
+  select supplier_id, count(*) as count
+  from supplier_products
+  group by supplier_id;
+$$;
+
+-- ==========================================
+-- Phase 7: allocations 테이블에 스마트 배정 필드 추가
+-- ==========================================
+alter table allocations
+  add column smart_allocation_applied boolean not null default false,
+  add column supplier_price integer;
+
+-- ==========================================
 -- updated_at 자동 갱신 트리거
 -- ==========================================
 create or replace function set_updated_at()
@@ -315,6 +409,8 @@ create trigger trg_st_updated before update on supplier_templates
   for each row execute function set_updated_at();
 create trigger trg_pt_updated before update on platform_templates
   for each row execute function set_updated_at();
+create trigger trg_spt_updated before update on supplier_product_templates
+  for each row execute function set_updated_at();
 
 -- ==========================================
 -- RLS (Row Level Security)
@@ -332,6 +428,8 @@ alter table name_mappings enable row level security;
 alter table courier_mappings enable row level security;
 alter table supplier_templates enable row level security;
 alter table platform_templates enable row level security;
+alter table supplier_product_templates enable row level security;
+alter table supplier_products enable row level security;
 
 do $$
 declare
@@ -341,7 +439,8 @@ begin
     select unnest(array[
       'work_sessions', 'order_imports', 'orders', 'allocations',
       'tracking_imports', 'trackings', 'suppliers', 'product_mappings',
-      'name_mappings', 'courier_mappings', 'supplier_templates', 'platform_templates'
+      'name_mappings', 'courier_mappings', 'supplier_templates', 'platform_templates',
+      'supplier_product_templates', 'supplier_products'
     ])
   loop
     execute format(
@@ -436,5 +535,7 @@ using (bucket_id = 'templates');
 | `unique(work_session_id, platform, matching_key)` | orders | 주문 라인 중복 업로드 방지 |
 | `unique(supplier_id)` | supplier_templates | 공급처당 1양식 |
 | `unique(platform)` | platform_templates | 플랫폼당 1양식 |
+| `unique(supplier_id)` | supplier_product_templates | 공급처당 1양식 |
+| `stock_status in (...)` | supplier_products | 재고 상태 제약 |
 | `on delete cascade` | order_imports → orders | 재업로드 시 연쇄 삭제 |
 | `on delete set null` | trackings.allocation_id | allocation 삭제 시 미매칭 전환 |

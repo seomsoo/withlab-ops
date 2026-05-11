@@ -58,8 +58,25 @@ type Allocation = {
   allocatedQuantity: number    // = order.quantity (항상 동일)
   status: "pending" | "ordered"
   isTemporaryOverride: boolean // true = "오늘만 변경"
+  smartAllocationApplied: boolean  // Phase 7: 가격/재고 기반 스마트 배정 적용 여부
+  supplierPrice?: number       // Phase 7: 배정 시점 공급처 가격 스냅샷
   createdAt: string
   orderedAt?: string           // 발주 완료 처리 시점
+}
+```
+
+### PendingAllocation (배정 생성용)
+```ts
+type PendingAllocation = {
+  orderId: string
+  supplierId: string
+  supplierProductName: string
+  supplierProductCode?: string
+  allocatedQuantity: number
+  isTemporaryOverride: boolean
+  nameMappingApplied: boolean
+  smartAllocationApplied: boolean
+  supplierPrice?: number
 }
 ```
 
@@ -240,6 +257,53 @@ type SupplierTemplate = {
   headerRow: number
   dataStartRow: number
   columnMappings: ColumnMappingItem[]
+}
+```
+
+### SupplierProductTemplate (공급처 상품 양식)
+```ts
+type StockStatus = 'available' | 'soldout' | 'unknown'
+
+type SupplierProductSystemField =
+  | 'productCode' | 'productName' | 'optionName'
+  | 'price' | 'stockStatus' | 'extra'
+
+type SupplierProductColumnMapping = {
+  sourceColumnIndex: number    // 0-based
+  sourceHeaderName: string     // 원본 헤더명 (UI 표시용)
+  targetField: SupplierProductSystemField
+}
+
+type SupplierProductTemplate = {
+  id: string
+  supplierId: string
+  templatePath: string         // Supabase Storage 경로
+  templateFileName: string
+  sheetName: string
+  headerRow: number
+  dataStartRow: number
+  columnMappings: SupplierProductColumnMapping[]
+  lastUploadedFileName?: string
+  lastUploadedAt?: string
+  lastUploadedCount: number
+  lastInvalidCount: number
+  createdAt: string
+  updatedAt: string
+}
+```
+
+### SupplierProduct (공급처 상품)
+```ts
+type SupplierProduct = {
+  id: string
+  supplierId: string
+  productCode?: string
+  productName: string
+  optionName: string
+  price?: number               // 원 단위
+  stockStatus: StockStatus     // available | soldout | unknown
+  extra: Record<string, unknown>  // 매핑 안 된 추가 컬럼
+  createdAt: string
 }
 ```
 

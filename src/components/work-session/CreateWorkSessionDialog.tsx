@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -33,12 +33,14 @@ export function CreateWorkSessionDialog({
 }: CreateWorkSessionDialogProps) {
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
+  const [prevOpen, setPrevOpen] = useState(false)
 
-  useEffect(() => {
-    if (open) {
-      setName(defaultName ?? getDefaultWorkSessionName())
-    }
-  }, [open, defaultName])
+  if (open && !prevOpen) {
+    setName(defaultName ?? getDefaultWorkSessionName())
+  }
+  if (open !== prevOpen) {
+    setPrevOpen(open)
+  }
 
   const handleCreate = async () => {
     const trimmed = name.trim()

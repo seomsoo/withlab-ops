@@ -8,13 +8,18 @@ const ROUTE_TITLES: Record<string, string> = {
   '/mapping/products': '품목 매핑',
   '/mapping/names': '상품명 변환',
   '/mapping/couriers': '택배사 매핑',
-  '/settings/supplier-template': '발주서 양식',
   '/settings/platform-template': '운송장 양식',
+}
+
+function getTitle(pathname: string): string {
+  if (ROUTE_TITLES[pathname]) return ROUTE_TITLES[pathname]
+  if (pathname.startsWith('/mapping/suppliers/')) return '공급처 상세'
+  return 'WithLab'
 }
 
 export function TopBar() {
   const { pathname } = useLocation()
-  const title = ROUTE_TITLES[pathname] ?? 'WithLab'
+  const title = getTitle(pathname)
 
   return (
     <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-line bg-card px-8">

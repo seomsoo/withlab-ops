@@ -63,6 +63,17 @@ export async function updateSupplier(
   return toSupplier(data as SupplierRow)
 }
 
+export async function getSupplierById(id: string): Promise<Supplier | null> {
+  const { data, error } = await supabase
+    .from('suppliers')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(`공급처 조회 실패: ${error.message}`)
+  if (!data) return null
+  return toSupplier(data as SupplierRow)
+}
+
 export async function deleteSupplier(id: string): Promise<void> {
   const { error } = await supabase
     .from('suppliers')

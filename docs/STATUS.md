@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-6
+7
 
 ## 진행 단계 전체 흐름
 
@@ -215,6 +215,30 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
   - [x] Codex P2/P3 지적사항 수정 (DB View 마이그레이션, 미매칭 쿼리, 다이얼로그 초기화)
   - [x] `docs/REF_디자인_시스템.md` 다크 테마 토큰 섹션 추가
 - **이슈/메모**: -
+
+### Phase 7: 공급처 상품 카탈로그 + 스마트 배정
+- **상태**: ✅ 검증 통과
+- **시작일**: 2026-05-11
+- **완료일**: 2026-05-11
+- **스펙 문서**: `docs/specs/PHASE_07_공급처_상품_스마트배정.md`
+- **검증 결과**: `docs/specs/PHASE_07-verify.md` — ✅ 통과 (P1: 2건 수정 완료, P2: 2건 수정 완료)
+- **선행 조건**: Phase 6 ✅
+- **산출물**:
+  - [x] DB 마이그레이션 4건 (supplier_product_templates, supplier_products, allocations ALTER, RPC 2개)
+  - [x] 타입 + Zod 스키마 추가 (SupplierProduct, SupplierProductTemplate, StockStatus 등)
+  - [x] Supabase API 2개 (supplierProductTemplates.ts, supplierProducts.ts)
+  - [x] 공급처 상품 파서 + 테스트 (19개)
+  - [x] 자동 매칭 제안 로직 + 테스트 (12개)
+  - [x] 스마트 배정 로직 확장 + 테스트 (10개 신규, 기존 19개 하위호환 = 29개)
+  - [x] Hook 3개 (useSupplierProducts, useMatchSuggestions, useAllocation 확장)
+  - [x] UI: SupplierDetail 상품 목록 섹션
+  - [x] UI: NameMapping 자동 매칭 제안 + 자동완성
+  - [x] UI: SupplierAllocation 가격/재고 표시 + 상품 갱신 섹션
+  - [x] UI: SupplierManage 상품 수 + 빠른 업로드
+  - [x] UI: Dashboard totalProductCount
+  - [x] 문서 업데이트 (REF_데이터_모델, REF_DB_스키마, REF_엑셀_구조)
+  - [x] `npm run build` + `npm run typecheck` + `npm run lint` + `npm run test:run` 전체 통과 (159 tests)
+- **이슈/메모**: useMatchSuggestions 인터페이스가 스펙과 미세하게 다름 (기능적 동치, 수용)
 
 ---
 

@@ -62,11 +62,12 @@ export function useSuppliers(includeInactive = false) {
   }, [includeInactive])
 
   const create = useCallback(
-    async (data: SupplierFormData) => {
+    async (data: SupplierFormData): Promise<Supplier> => {
       try {
-        await createSupplier(data)
+        const result = await createSupplier(data)
         toast.success('공급처를 추가했습니다')
         await refetch()
+        return result
       } catch (err) {
         const message =
           err instanceof Error ? err.message : '오류가 발생했습니다'

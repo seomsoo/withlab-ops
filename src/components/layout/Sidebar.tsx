@@ -7,7 +7,6 @@ import {
   ArrowLeftRight,
   Replace,
   Package,
-  FileSpreadsheet,
   FileUp,
   LogOut,
 } from 'lucide-react'
@@ -49,11 +48,6 @@ const NAV_SECTIONS: (NavItem | NavSection)[] = [
       { label: '품목 매핑', href: '/mapping/products', icon: ArrowLeftRight },
       { label: '상품명 변환', href: '/mapping/names', icon: Replace },
       { label: '택배사 매핑', href: '/mapping/couriers', icon: Package },
-      {
-        label: '발주서 양식',
-        href: '/settings/supplier-template',
-        icon: FileSpreadsheet,
-      },
       {
         label: '운송장 양식',
         href: '/settings/platform-template',

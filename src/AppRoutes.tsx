@@ -15,10 +15,10 @@ import TrackingUpload from '@/pages/tracking/TrackingUpload'
 import TrackingMatchResult from '@/pages/tracking/TrackingMatchResult'
 import TrackingDownload from '@/pages/tracking/TrackingDownload'
 import SupplierManage from '@/pages/mapping/SupplierManage'
+import SupplierDetail from '@/pages/mapping/SupplierDetail'
 import ProductMapping from '@/pages/mapping/ProductMapping'
 import NameMapping from '@/pages/mapping/NameMapping'
 import CourierMapping from '@/pages/mapping/CourierMapping'
-import SupplierTemplate from '@/pages/settings/SupplierTemplate'
 import PlatformTemplate from '@/pages/settings/PlatformTemplate'
 
 export function AppRoutes() {
@@ -60,17 +60,18 @@ export function AppRoutes() {
             element={<Navigate to="/mapping/suppliers" replace />}
           />
           <Route path="/mapping/suppliers" element={<SupplierManage />} />
+          <Route path="/mapping/suppliers/:id" element={<SupplierDetail />} />
           <Route path="/mapping/products" element={<ProductMapping />} />
           <Route path="/mapping/names" element={<NameMapping />} />
           <Route path="/mapping/couriers" element={<CourierMapping />} />
 
           <Route
             path="/settings"
-            element={<Navigate to="/settings/supplier-template" replace />}
+            element={<Navigate to="/settings/platform-template" replace />}
           />
           <Route
             path="/settings/supplier-template"
-            element={<SupplierTemplate />}
+            element={<Navigate to="/mapping/suppliers" replace />}
           />
           <Route
             path="/settings/platform-template"

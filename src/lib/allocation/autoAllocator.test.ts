@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { autoAllocate } from './autoAllocator'
-import type { StandardOrder, ProductMapping, NameMapping, Supplier } from '@/types'
+import type {
+  StandardOrder,
+  ProductMapping,
+  NameMapping,
+  Supplier,
+  SupplierProduct,
+} from '@/types'
 
 function makeOrder(overrides: Partial<StandardOrder> = {}): StandardOrder {
   return {
@@ -334,5 +340,216 @@ describe('autoAllocate', () => {
     })
 
     expect(result.allocated[0]!.allocatedQuantity).toBe(7)
+  })
+})
+
+function makeSP(overrides: Partial<SupplierProduct> = {}): SupplierProduct {
+  return {
+    id: 'sp-1',
+    supplierId: 'sup-A',
+    productCode: '',
+    productName: '참외 5kg',
+    optionName: '',
+    category: '',
+    price: 15000,
+    stockStatus: 'available',
+    stockRaw: '판매중',
+    courier: '',
+    extra: {},
+    uploadedAt: '2026-05-11',
+    ...overrides,
+  }
+}
+
+describe('autoAllocate — 스마트 배정', () => {
+  it('S1. 2개 공급처 후보 중 저가 선택', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [
+        makeMapping({ id: 'pm-1', supplierId: 'sup-A', isDefault: false }),
+        makeMapping({ id: 'pm-2', supplierId: 'sup-B', isDefault: false }),
+      ],
+      nameMappings: [],
+      suppliers: [
+        makeSupplier({ id: 'sup-A', name: 'A업체' }),
+        makeSupplier({ id: 'sup-B', name: 'B업체' }),
+      ],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productName: '참외 5kg', price: 20000 }),
+        makeSP({ id: 'sp-2', supplierId: 'sup-B', productName: '참외 5kg', price: 15000 }),
+      ],
+    })
+
+    expect(result.allocated).toHaveLength(1)
+    expect(result.allocated[0]!.supplierId).toBe('sup-B')
+    expect(result.allocated[0]!.supplierPrice).toBe(15000)
+  })
+
+  it('S2. 재고 soldout 제외', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [
+        makeMapping({ id: 'pm-1', supplierId: 'sup-A', isDefault: false }),
+        makeMapping({ id: 'pm-2', supplierId: 'sup-B', isDefault: false }),
+      ],
+      nameMappings: [],
+      suppliers: [
+        makeSupplier({ id: 'sup-A', name: 'A업체' }),
+        makeSupplier({ id: 'sup-B', name: 'B업체' }),
+      ],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productName: '참외 5kg', price: 5000, stockStatus: 'soldout' }),
+        makeSP({ id: 'sp-2', supplierId: 'sup-B', productName: '참외 5kg', price: 6000, stockStatus: 'available' }),
+      ],
+    })
+
+    expect(result.allocated).toHaveLength(1)
+    expect(result.allocated[0]!.supplierId).toBe('sup-B')
+  })
+
+  it('S3. isDefault + available → 가격 무관 isDefault 선택', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [
+        makeMapping({ id: 'pm-1', supplierId: 'sup-A', isDefault: true }),
+        makeMapping({ id: 'pm-2', supplierId: 'sup-B', isDefault: false }),
+      ],
+      nameMappings: [],
+      suppliers: [
+        makeSupplier({ id: 'sup-A', name: 'A업체' }),
+        makeSupplier({ id: 'sup-B', name: 'B업체' }),
+      ],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productName: '참외 5kg', price: 30000, stockStatus: 'available' }),
+        makeSP({ id: 'sp-2', supplierId: 'sup-B', productName: '참외 5kg', price: 10000, stockStatus: 'available' }),
+      ],
+    })
+
+    expect(result.allocated[0]!.supplierId).toBe('sup-A')
+  })
+
+  it('S4. isDefault + soldout → fallback 최저가', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [
+        makeMapping({ id: 'pm-1', supplierId: 'sup-A', isDefault: true }),
+        makeMapping({ id: 'pm-2', supplierId: 'sup-B', isDefault: false }),
+      ],
+      nameMappings: [],
+      suppliers: [
+        makeSupplier({ id: 'sup-A', name: 'A업체' }),
+        makeSupplier({ id: 'sup-B', name: 'B업체' }),
+      ],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productName: '참외 5kg', price: 10000, stockStatus: 'soldout' }),
+        makeSP({ id: 'sp-2', supplierId: 'sup-B', productName: '참외 5kg', price: 15000, stockStatus: 'available' }),
+      ],
+    })
+
+    expect(result.allocated[0]!.supplierId).toBe('sup-B')
+  })
+
+  it('S5. 가격 null 처리: 가격 있는 공급처 우선', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [
+        makeMapping({ id: 'pm-1', supplierId: 'sup-A', isDefault: false }),
+        makeMapping({ id: 'pm-2', supplierId: 'sup-B', isDefault: false }),
+      ],
+      nameMappings: [],
+      suppliers: [
+        makeSupplier({ id: 'sup-A', name: 'A업체' }),
+        makeSupplier({ id: 'sup-B', name: 'B업체' }),
+      ],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productName: '참외 5kg', price: null }),
+        makeSP({ id: 'sp-2', supplierId: 'sup-B', productName: '참외 5kg', price: 12000 }),
+      ],
+    })
+
+    expect(result.allocated[0]!.supplierId).toBe('sup-B')
+  })
+
+  it('S6. 모든 후보 soldout → unmatched', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [
+        makeMapping({ id: 'pm-1', supplierId: 'sup-A', isDefault: false }),
+        makeMapping({ id: 'pm-2', supplierId: 'sup-B', isDefault: false }),
+      ],
+      nameMappings: [],
+      suppliers: [
+        makeSupplier({ id: 'sup-A', name: 'A업체' }),
+        makeSupplier({ id: 'sup-B', name: 'B업체' }),
+      ],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productName: '참외 5kg', stockStatus: 'soldout' }),
+        makeSP({ id: 'sp-2', supplierId: 'sup-B', productName: '참외 5kg', stockStatus: 'soldout' }),
+      ],
+    })
+
+    expect(result.allocated).toHaveLength(0)
+    expect(result.unmatched).toHaveLength(1)
+    expect(result.unmatched[0]!.reason).toBe('모든 후보 공급처 품절')
+  })
+
+  it('S7. supplierProducts 빈 배열 → 기존 로직대로 동작', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [makeMapping()],
+      nameMappings: [],
+      suppliers: [makeSupplier()],
+      supplierProducts: [],
+    })
+
+    expect(result.allocated).toHaveLength(1)
+    expect(result.allocated[0]!.smartAllocationApplied).toBe(false)
+  })
+
+  it('S8. supplierPrice 스냅샷 저장', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [makeMapping({ isDefault: false })],
+      nameMappings: [],
+      suppliers: [makeSupplier()],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productName: '참외 5kg', price: 18000 }),
+      ],
+    })
+
+    expect(result.allocated[0]!.supplierPrice).toBe(18000)
+    expect(result.allocated[0]!.smartAllocationApplied).toBe(true)
+  })
+
+  it('S9. productCode 우선 매칭', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [makeMapping({ isDefault: false })],
+      nameMappings: [
+        makeNameMapping({ supplierProductCode: 'CF-5K-H' }),
+      ],
+      suppliers: [makeSupplier()],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productCode: 'CF-5K-H', productName: '다른이름', price: 11000 }),
+        makeSP({ id: 'sp-2', supplierId: 'sup-A', productCode: '', productName: '성주참외 5kg 가정', price: 99000 }),
+      ],
+    })
+
+    expect(result.allocated[0]!.supplierPrice).toBe(11000)
+  })
+
+  it('S10. unknown 재고 허용', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [makeMapping({ isDefault: false })],
+      nameMappings: [],
+      suppliers: [makeSupplier()],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-A', productName: '참외 5kg', stockStatus: 'unknown', price: 14000 }),
+      ],
+    })
+
+    expect(result.allocated).toHaveLength(1)
+    expect(result.allocated[0]!.supplierId).toBe('sup-A')
   })
 })

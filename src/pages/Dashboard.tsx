@@ -237,10 +237,12 @@ function RecentJobs({
 function Shortcuts({
   totalMappingCount,
   totalSupplierCount,
+  totalProductCount,
   unmatchedTrackingCount,
 }: {
   totalMappingCount: number
   totalSupplierCount: number
+  totalProductCount: number
   unmatchedTrackingCount: number
 }) {
   const items = [
@@ -254,7 +256,7 @@ function Shortcuts({
         unmatchedTrackingCount > 0 ? `미매칭 ${unmatchedTrackingCount}` : null,
     },
     {
-      href: '/settings/supplier-template',
+      href: '/mapping/suppliers',
       icon: FileSpreadsheet,
       title: '양식 관리',
       desc: '공급처별 발주 양식 관리',
@@ -265,8 +267,8 @@ function Shortcuts({
       href: '/mapping/suppliers',
       icon: Building2,
       title: '공급처 관리',
-      desc: '거래처와 연락처 관리',
-      count: `${totalSupplierCount}개`,
+      desc: `공급처 ${totalSupplierCount} · 상품 ${totalProductCount}`,
+      count: null,
       warn: null,
     },
   ]
@@ -355,6 +357,7 @@ export default function Dashboard() {
       <Shortcuts
         totalMappingCount={stats?.totalMappingCount ?? 0}
         totalSupplierCount={stats?.totalSupplierCount ?? 0}
+        totalProductCount={stats?.totalProductCount ?? 0}
         unmatchedTrackingCount={stats?.unmatchedTrackingCount ?? 0}
       />
 

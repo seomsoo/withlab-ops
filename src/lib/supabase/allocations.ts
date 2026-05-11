@@ -44,6 +44,8 @@ export async function createAllocations(
     status: 'pending' as const,
     is_temporary_override: a.isTemporaryOverride,
     name_mapping_applied: a.nameMappingApplied,
+    smart_allocation_applied: a.smartAllocationApplied,
+    supplier_price: a.supplierPrice ?? null,
   }))
 
   const { data, error } = await supabase
@@ -121,6 +123,8 @@ export async function updateGroupSupplier(input: {
       supplier_product_code: input.supplierProductCode ?? null,
       is_temporary_override: input.isTemporaryOverride,
       name_mapping_applied: input.nameMappingApplied,
+      smart_allocation_applied: false,
+      supplier_price: null,
     })
     .eq('work_session_id', input.workSessionId)
     .in('order_id', input.orderIds)

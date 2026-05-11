@@ -1,10 +1,13 @@
-import { useState, useMemo } from 'react'
-import { Plus, Pencil, Power, Search, X } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { Plus, Pencil, Power, Search, X, Upload } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { StatusBadge } from '@/components/ui/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,7 +28,17 @@ import {
 } from '@/components/ui/table'
 
 import { useSuppliers } from '@/hooks/useSuppliers'
+import { useSupplierTemplates } from '@/hooks/useSupplierTemplate'
 import { supplierFormSchema } from '@/lib/schemas'
+import { getSupplierProductCounts } from '@/lib/supabase/supplierProducts'
+import {
+  getSupplierProductTemplate,
+} from '@/lib/supabase/supplierProductTemplates'
+import { parseSupplierProducts } from '@/lib/parsers/supplierProductParser'
+import { replaceSupplierProducts } from '@/lib/supabase/supplierProducts'
+import { updateUploadHistory } from '@/lib/supabase/supplierProductTemplates'
+import { validateExcelFile } from '@/utils/file'
+import { readExcelFile, sheetToRows } from '@/utils/excel'
 
 import type { Supplier } from '@/types'
 import type { SupplierFormData } from '@/lib/schemas'
@@ -34,6 +47,13 @@ const EMPTY_FORM: SupplierFormData = { name: '', contact: '', memo: '' }
 
 export default function SupplierManage() {
   const { suppliers, loading, create, update, remove } = useSuppliers(true)
+  const { templates } = useSupplierTemplates()
+  const navigate = useNavigate()
+
+  const templateSupplierIds = useMemo(
+    () => new Set(templates.map((t) => t.supplierId)),
+    [templates]
+  )
 
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -44,6 +64,21 @@ export default function SupplierManage() {
 
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [productCounts, setProductCounts] = useState<Map<string, number>>(new Map())
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const counts = await getSupplierProductCounts()
+        if (alive) setProductCounts(counts)
+      } catch {
+        // non-critical
+      }
+    })()
+    return () => { alive = false }
+  }, [suppliers])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return suppliers
@@ -55,6 +90,62 @@ export default function SupplierManage() {
         (s.memo ?? '').toLowerCase().includes(q)
     )
   }, [suppliers, search])
+
+  async function handleQuickUpload(supplierId: string) {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.xlsx,.xls'
+    input.onchange = async (e) => {
+      const f = (e.target as HTMLInputElement).files?.[0]
+      if (!f) return
+      try {
+        validateExcelFile(f)
+        setUploadingFor(supplierId)
+
+        const tpl = await getSupplierProductTemplate(supplierId)
+        if (!tpl) {
+          toast.error('상품 양식을 먼저 등록해주세요')
+          return
+        }
+
+        const wb = await readExcelFile(f)
+        const sheet = wb.Sheets[tpl.sheetName] ?? wb.Sheets[wb.SheetNames[0]!]
+        if (!sheet) {
+          toast.error('시트를 찾을 수 없습니다')
+          return
+        }
+
+        const rows = sheetToRows(sheet)
+        const result = parseSupplierProducts({
+          rows,
+          columnMappings: tpl.columnMappings,
+          headerRow: tpl.headerRow,
+          dataStartRow: tpl.dataStartRow,
+        })
+
+        if (result.meta.validCount === 0) {
+          toast.error(`파싱 실패: 유효한 상품 없음 (오류 ${result.meta.invalidCount}건)`)
+          return
+        }
+
+        await replaceSupplierProducts(supplierId, result.products)
+        await updateUploadHistory(supplierId, {
+          lastUploadedFileName: f.name,
+          lastUploadedCount: result.meta.validCount,
+          lastInvalidCount: result.meta.invalidCount,
+        })
+
+        const freshCounts = await getSupplierProductCounts()
+        setProductCounts(freshCounts)
+        toast.success(`${result.meta.validCount}개 상품 등록 완료`)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '상품 업로드 실패')
+      } finally {
+        setUploadingFor(null)
+      }
+    }
+    input.click()
+  }
 
   function openCreate() {
     setEditing(null)
@@ -84,11 +175,14 @@ export default function SupplierManage() {
     try {
       if (editing) {
         await update(editing.id, result.data)
+        setDialogOpen(false)
+        setForm(EMPTY_FORM)
       } else {
-        await create(result.data)
+        const newSupplier = await create(result.data)
+        setDialogOpen(false)
+        setForm(EMPTY_FORM)
+        navigate(`/mapping/suppliers/${newSupplier.id}`)
       }
-      setDialogOpen(false)
-      setForm(EMPTY_FORM)
     } catch {
       // toast already shown by hook
     } finally {
@@ -196,14 +290,24 @@ export default function SupplierManage() {
                       메모
                     </TableHead>
                     <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
+                      양식
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
+                      상품
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
                       등록일
                     </TableHead>
-                    <TableHead className="w-[80px]" />
+                    <TableHead className="w-[140px]" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filtered.map((s) => (
-                    <TableRow key={s.id}>
+                    <TableRow
+                      key={s.id}
+                      className="cursor-pointer"
+                      onClick={() => navigate(`/mapping/suppliers/${s.id}`)}
+                    >
                       <TableCell className="font-semibold">
                         <div className="flex items-center gap-2">
                           {s.name}
@@ -220,14 +324,34 @@ export default function SupplierManage() {
                       <TableCell className="max-w-[200px] truncate text-[13px] text-t-mid">
                         {s.memo || '—'}
                       </TableCell>
+                      <TableCell>
+                        {templateSupplierIds.has(s.id) ? (
+                          <StatusBadge variant="success">등록됨</StatusBadge>
+                        ) : (
+                          <StatusBadge variant="muted">미등록</StatusBadge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-[13px] text-t-mid">
+                        {productCounts.has(s.id)
+                          ? `${productCounts.get(s.id)!.toLocaleString()}개`
+                          : '—'}
+                      </TableCell>
                       <TableCell className="font-mono text-[13px] text-t-mute">
                         {s.createdAt.slice(0, 10)}
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-end gap-1">
                           <button
+                            className="flex h-7 items-center gap-1 rounded-md px-2 text-xs text-t-mute hover:bg-gray-200 hover:text-t-strong disabled:opacity-50"
+                            onClick={(e) => { e.stopPropagation(); handleQuickUpload(s.id) }}
+                            disabled={uploadingFor === s.id}
+                            title={templateSupplierIds.has(s.id) ? '상품 업로드' : '상품 양식을 먼저 등록해주세요'}
+                          >
+                            <Upload size={13} />
+                          </button>
+                          <button
                             className="flex h-7 w-7 items-center justify-center rounded-md text-t-mute hover:bg-gray-200 hover:text-t-strong"
-                            onClick={() => openEdit(s)}
+                            onClick={(e) => { e.stopPropagation(); openEdit(s) }}
                             aria-label="수정"
                           >
                             <Pencil size={14} />
@@ -235,7 +359,7 @@ export default function SupplierManage() {
                           {s.isActive && (
                             <button
                               className="flex h-7 w-7 items-center justify-center rounded-md text-t-mute hover:bg-error-light hover:text-error"
-                              onClick={() => setDeleteTarget(s)}
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(s) }}
                               aria-label="비활성화"
                             >
                               <Power size={14} />

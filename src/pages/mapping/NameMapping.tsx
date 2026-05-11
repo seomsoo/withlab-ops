@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
-import { Plus, Pencil, Trash2, Search, X } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { toast } from 'sonner'
+import { Plus, Pencil, Trash2, Search, X, Sparkles } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -9,6 +10,7 @@ import { PlatformBadge } from '@/components/PlatformBadge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -34,9 +36,15 @@ import {
 
 import { useNameMappings } from '@/hooks/useNameMappings'
 import { useSuppliers } from '@/hooks/useSuppliers'
+import { useMatchSuggestions } from '@/hooks/useMatchSuggestions'
 import { nameMappingFormSchema } from '@/lib/schemas'
+import { getProductMappings } from '@/lib/supabase/productMappings'
+import { getSupplierProducts, getAllSupplierProducts } from '@/lib/supabase/supplierProducts'
+import { createNameMappingsBulk } from '@/lib/supabase/nameMappings'
 
+import type { SupplierProduct } from '@/types'
 import type { NameMappingWithSupplier, NameMappingFormData } from '@/lib/schemas'
+import type { BulkSuggestion } from '@/hooks/useMatchSuggestions'
 
 const EMPTY_FORM: NameMappingFormData = {
   platform: 'coupang',
@@ -48,8 +56,9 @@ const EMPTY_FORM: NameMappingFormData = {
 }
 
 export default function NameMapping() {
-  const { mappings, loading: mappingsLoading, create, update, remove } = useNameMappings()
+  const { mappings, loading: mappingsLoading, create, update, remove, refetch } = useNameMappings()
   const { suppliers, loading: suppliersLoading } = useSuppliers()
+  const { suggestAll, loading: suggestingAll } = useMatchSuggestions()
 
   const [search, setSearch] = useState('')
   const [supplierFilter, setSupplierFilter] = useState('all')
@@ -62,7 +71,157 @@ export default function NameMapping() {
   const [deleteTarget, setDeleteTarget] = useState<NameMappingWithSupplier | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  const [acProducts, setAcProducts] = useState<SupplierProduct[]>([])
+  const [acOpen, setAcOpen] = useState(false)
+  const [acLoading, setAcLoading] = useState(false)
+  const acRef = useRef<HTMLDivElement>(null)
+
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkSuggestions, setBulkSuggestions] = useState<BulkSuggestion[]>([])
+  const [bulkSelected, setBulkSelected] = useState<Set<number>>(new Set())
+  const [bulkSaving, setBulkSaving] = useState(false)
+
   const loading = mappingsLoading || suppliersLoading
+
+  useEffect(() => {
+    let alive = true
+    if (!dialogOpen || !form.supplierId) {
+      return () => { alive = false }
+    }
+    void (async () => {
+      try {
+        setAcLoading(true)
+        const products = await getSupplierProducts(form.supplierId)
+        if (alive) setAcProducts(products)
+      } catch {
+        if (alive) setAcProducts([])
+      } finally {
+        if (alive) setAcLoading(false)
+      }
+    })()
+    return () => {
+      alive = false
+      setAcProducts([])
+    }
+  }, [dialogOpen, form.supplierId])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (acRef.current && !acRef.current.contains(e.target as Node)) {
+        setAcOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const acFiltered = useMemo(() => {
+    if (acProducts.length === 0) return []
+    const q = (form.supplierProductName ?? '').trim().toLowerCase()
+    if (!q) return acProducts.slice(0, 10)
+    return acProducts
+      .filter(
+        (p) =>
+          p.productName.toLowerCase().includes(q) ||
+          (p.optionName ?? '').toLowerCase().includes(q) ||
+          (p.productCode ?? '').toLowerCase().includes(q)
+      )
+      .slice(0, 10)
+  }, [acProducts, form.supplierProductName])
+
+  async function handleBulkSuggest() {
+    try {
+      setBulkLoading(true)
+      const [productMappings, allProducts] = await Promise.all([
+        getProductMappings(),
+        getAllSupplierProducts(),
+      ])
+
+      const existingKeys = new Set(
+        mappings.map(
+          (m) => `${m.platform}|${m.platformProductName}|${m.platformOptionName}|${m.supplierId}`
+        )
+      )
+
+      const unmapped = productMappings.filter(
+        (pm) =>
+          !existingKeys.has(
+            `${pm.platform}|${pm.productName}|${pm.optionName}|${pm.supplierId}`
+          )
+      )
+
+      if (unmapped.length === 0) {
+        toast.info('모든 매핑에 이미 상품명 변환이 등록되어 있습니다')
+        setBulkLoading(false)
+        return
+      }
+
+      const suggestions = await suggestAll(
+        unmapped.map((pm) => ({
+          platformProductName: pm.productName,
+          platformOptionName: pm.optionName,
+          platform: pm.platform,
+          supplierId: pm.supplierId,
+        })),
+        allProducts
+      )
+
+      setBulkSuggestions(suggestions)
+      const initialSelected = new Set<number>()
+      suggestions.forEach((s, i) => {
+        if (s.topMatch && s.topMatch.score >= 0.5) {
+          initialSelected.add(i)
+        }
+      })
+      setBulkSelected(initialSelected)
+      setBulkOpen(true)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : '자동 매칭 제안 조회 실패'
+      )
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
+  async function handleBulkCreate() {
+    const items: NameMappingFormData[] = []
+    for (const idx of bulkSelected) {
+      const s = bulkSuggestions[idx]
+      if (!s?.topMatch) continue
+      items.push({
+        platform: s.platform,
+        platformProductName: s.platformProductName,
+        platformOptionName: s.platformOptionName,
+        supplierId: s.supplierId,
+        supplierProductName: s.topMatch.supplierProduct.productName,
+        supplierProductCode: s.topMatch.supplierProduct.productCode ?? '',
+      })
+    }
+    if (items.length === 0) return
+
+    setBulkSaving(true)
+    try {
+      const result = await createNameMappingsBulk(items)
+      const msg = [
+        result.createdCount > 0 ? `등록 ${result.createdCount}건` : null,
+        result.skippedCount > 0 ? `중복 ${result.skippedCount}건` : null,
+        result.failedCount > 0 ? `실패 ${result.failedCount}건` : null,
+      ]
+        .filter(Boolean)
+        .join(', ')
+      toast.success(`일괄 등록 완료: ${msg}`)
+      setBulkOpen(false)
+      await refetch()
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : '일괄 등록 실패'
+      )
+    } finally {
+      setBulkSaving(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     return mappings
@@ -160,10 +319,20 @@ export default function NameMapping() {
         title="상품명 변환 매핑"
         description="플랫폼 상품명을 공급처가 사용하는 상품명·코드로 변환합니다. 발주서 출력 시 자동 적용됩니다."
         actions={
-          <Button onClick={openCreate}>
-            <Plus size={16} />
-            매핑 추가
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleBulkSuggest}
+              disabled={bulkLoading || suggestingAll}
+            >
+              <Sparkles size={16} />
+              {bulkLoading || suggestingAll ? '분석 중...' : '자동 매칭 제안'}
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus size={16} />
+              매핑 추가
+            </Button>
+          </div>
         }
       />
 
@@ -398,17 +567,51 @@ export default function NameMapping() {
               </Select>
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-1.5" ref={acRef}>
               <Label>
                 공급처 상품명 <span className="text-error">*</span>
               </Label>
-              <Input
-                value={form.supplierProductName}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, supplierProductName: e.target.value }))
-                }
-                placeholder="예: 정품 참외 중소과 5kg"
-              />
+              <div className="relative">
+                <Input
+                  value={form.supplierProductName}
+                  onChange={(e) => {
+                    setForm((f) => ({ ...f, supplierProductName: e.target.value }))
+                    if (acProducts.length > 0) setAcOpen(true)
+                  }}
+                  onFocus={() => {
+                    if (acProducts.length > 0) setAcOpen(true)
+                  }}
+                  placeholder={acLoading ? '상품 목록 불러오는 중...' : '예: 정품 참외 중소과 5kg'}
+                />
+                {acOpen && acFiltered.length > 0 && (
+                  <div className="absolute top-full left-0 z-50 mt-1 max-h-[200px] w-full overflow-auto rounded-lg border border-line bg-card shadow-lg">
+                    {acFiltered.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                        onClick={() => {
+                          setForm((f) => ({
+                            ...f,
+                            supplierProductName: p.productName,
+                            supplierProductCode: p.productCode ?? '',
+                          }))
+                          setAcOpen(false)
+                        }}
+                      >
+                        <span className="flex-1 truncate font-medium">
+                          {p.productName}
+                        </span>
+                        {p.productCode && (
+                          <span className="flex-shrink-0 font-mono text-xs text-t-mute">
+                            {p.productCode}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -458,6 +661,109 @@ export default function NameMapping() {
           if (!open) setDeleteTarget(null)
         }}
       />
+
+      {/* 자동 매칭 제안 Dialog */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>
+              자동 매칭 제안 ({bulkSuggestions.length}건)
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            {bulkSuggestions.length === 0 ? (
+              <p className="py-8 text-center text-sm text-t-mute">
+                매칭 대상이 없습니다.
+              </p>
+            ) : (
+              <div className="flex flex-col divide-y divide-line">
+                {bulkSuggestions.map((s, i) => {
+                  const supplier = suppliers.find((sup) => sup.id === s.supplierId)
+                  const hasMatch = s.topMatch !== null
+                  const checked = bulkSelected.has(i)
+                  return (
+                    <label
+                      key={i}
+                      className={`flex items-start gap-3 px-3 py-3 ${
+                        hasMatch
+                          ? 'cursor-pointer hover:bg-gray-50'
+                          : 'opacity-50'
+                      }`}
+                    >
+                      <Checkbox
+                        checked={checked}
+                        disabled={!hasMatch}
+                        onCheckedChange={(v) => {
+                          setBulkSelected((prev) => {
+                            const next = new Set(prev)
+                            if (v) next.add(i)
+                            else next.delete(i)
+                            return next
+                          })
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-sm">
+                          <PlatformBadge platform={s.platform} />
+                          <span className="font-medium truncate">
+                            {s.platformProductName}
+                          </span>
+                          {s.platformOptionName && (
+                            <span className="text-t-mute truncate">
+                              {s.platformOptionName}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-[13px]">
+                          {hasMatch ? (
+                            <span className="text-t-mid">
+                              → [{supplier?.name ?? ''}]{' '}
+                              <span className="font-medium text-primary">
+                                {s.topMatch!.supplierProduct.productName}
+                              </span>
+                              {s.topMatch!.supplierProduct.productCode && (
+                                <span className="ml-1 font-mono text-xs text-t-mute">
+                                  ({s.topMatch!.supplierProduct.productCode})
+                                </span>
+                              )}
+                              <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[11px] font-semibold text-t-mid">
+                                {Math.round(s.topMatch!.score * 100)}%
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-t-mute">
+                              → [{supplier?.name ?? ''}] 매칭 없음
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <div className="flex-1 text-xs text-t-mute">
+              {bulkSelected.size}건 선택됨
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setBulkOpen(false)}
+              disabled={bulkSaving}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleBulkCreate}
+              disabled={bulkSaving || bulkSelected.size === 0}
+            >
+              {bulkSaving ? '등록 중...' : `${bulkSelected.size}건 등록`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

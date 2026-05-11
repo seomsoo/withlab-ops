@@ -207,7 +207,7 @@ export default function OrderDownload() {
                     <div className="mt-2 rounded-md bg-yellow-50 px-3 py-1.5 text-xs text-status-warning">
                       양식이 등록되지 않았습니다.{' '}
                       <Link
-                        to="/settings/supplier-template"
+                        to={`/mapping/suppliers/${order.supplierId}`}
                         className="underline"
                       >
                         양식 관리

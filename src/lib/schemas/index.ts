@@ -4,6 +4,8 @@ import type {
   ProductMapping,
   NameMapping,
   CourierMapping,
+  SupplierProductTemplate,
+  SupplierProduct,
 } from '@/types'
 
 const platformSchema = z.enum(['coupang', 'toss'])
@@ -31,6 +33,18 @@ const systemFieldSchema = z.enum([
   'deliveryMessage',
   'buyerName',
   'buyerPhone',
+  'empty',
+])
+
+const stockStatusSchema = z.enum(['available', 'soldout', 'unknown'])
+const supplierProductSystemFieldSchema = z.enum([
+  'productCode',
+  'productName',
+  'optionName',
+  'category',
+  'price',
+  'stockStatus',
+  'courier',
   'empty',
 ])
 
@@ -70,6 +84,8 @@ export const allocationSchema = z.object({
   status: allocationStatusSchema,
   isTemporaryOverride: z.boolean(),
   nameMappingApplied: z.boolean(),
+  smartAllocationApplied: z.boolean(),
+  supplierPrice: z.number().optional(),
   createdAt: z.string(),
   orderedAt: z.string().optional(),
 })
@@ -349,6 +365,8 @@ export type AllocationRow = {
   status: string
   is_temporary_override: boolean
   name_mapping_applied: boolean
+  smart_allocation_applied: boolean
+  supplier_price: number | null
   created_at: string
   ordered_at: string | null
 }
@@ -467,6 +485,38 @@ export type PlatformTemplateRow = {
   updated_at: string
 }
 
+export type SupplierProductTemplateRow = {
+  id: string
+  supplier_id: string
+  template_path: string
+  template_file_name: string
+  sheet_name: string
+  header_row: number
+  data_start_row: number
+  column_mappings: unknown
+  last_uploaded_file_name: string | null
+  last_uploaded_at: string | null
+  last_uploaded_count: number
+  last_invalid_count: number
+  created_at: string
+  updated_at: string
+}
+
+export type SupplierProductRow = {
+  id: string
+  supplier_id: string
+  product_code: string
+  product_name: string
+  option_name: string
+  category: string
+  price: number | null
+  stock_status: string
+  stock_raw: string
+  courier: string
+  extra: Record<string, unknown>
+  uploaded_at: string
+}
+
 // --- snake_case → camelCase 변환 함수 ---
 
 export function toSupplier(row: SupplierRow) {
@@ -530,6 +580,8 @@ export function toAllocation(row: AllocationRow) {
     status: row.status as 'pending' | 'ordered',
     isTemporaryOverride: row.is_temporary_override,
     nameMappingApplied: row.name_mapping_applied,
+    smartAllocationApplied: row.smart_allocation_applied,
+    supplierPrice: row.supplier_price ?? undefined,
     createdAt: row.created_at,
     orderedAt: row.ordered_at ?? undefined,
   }
@@ -663,5 +715,84 @@ export function toPlatformTrackingTemplate(row: PlatformTemplateRow) {
     statusColumnIndex: row.status_column_index ?? undefined,
     statusColumnName: row.status_column_name ?? undefined,
     statusValue: row.status_value ?? undefined,
+  }
+}
+
+export const supplierProductColumnMappingSchema = z.object({
+  targetColumnIndex: z.number().int(),
+  targetHeaderName: z.string(),
+  systemField: supplierProductSystemFieldSchema,
+})
+
+export const supplierProductTemplateSchema = z.object({
+  id: uuidString,
+  supplierId: uuidString,
+  templatePath: z.string(),
+  templateFileName: z.string(),
+  sheetName: z.string(),
+  headerRow: z.number().int(),
+  dataStartRow: z.number().int(),
+  columnMappings: z.array(supplierProductColumnMappingSchema),
+  lastUploadedFileName: z.string().nullable(),
+  lastUploadedAt: z.string().nullable(),
+  lastUploadedCount: z.number(),
+  lastInvalidCount: z.number(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const supplierProductSchema = z.object({
+  id: uuidString,
+  supplierId: uuidString,
+  productCode: z.string(),
+  productName: z.string(),
+  optionName: z.string(),
+  category: z.string(),
+  price: z.number().nullable(),
+  stockStatus: stockStatusSchema,
+  stockRaw: z.string(),
+  courier: z.string(),
+  extra: z.record(z.string(), z.unknown()),
+  uploadedAt: z.string(),
+})
+
+export function toSupplierProductTemplate(
+  row: SupplierProductTemplateRow
+): SupplierProductTemplate {
+  return {
+    id: row.id,
+    supplierId: row.supplier_id,
+    templatePath: row.template_path,
+    templateFileName: row.template_file_name,
+    sheetName: row.sheet_name,
+    headerRow: row.header_row,
+    dataStartRow: row.data_start_row,
+    columnMappings: z
+      .array(supplierProductColumnMappingSchema)
+      .parse(row.column_mappings),
+    lastUploadedFileName: row.last_uploaded_file_name,
+    lastUploadedAt: row.last_uploaded_at,
+    lastUploadedCount: row.last_uploaded_count,
+    lastInvalidCount: row.last_invalid_count,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export function toSupplierProduct(row: SupplierProductRow): SupplierProduct {
+  return {
+    id: row.id,
+    supplierId: row.supplier_id,
+    productCode: row.product_code,
+    productName: row.product_name,
+    optionName: row.option_name,
+    category: row.category,
+    price: row.price,
+    // as 사용 사유: DB text 컬럼 → 유니온 리터럴, check 제약으로 값 보장
+    stockStatus: row.stock_status as 'available' | 'soldout' | 'unknown',
+    stockRaw: row.stock_raw,
+    courier: row.courier,
+    extra: row.extra,
+    uploadedAt: row.uploaded_at,
   }
 }

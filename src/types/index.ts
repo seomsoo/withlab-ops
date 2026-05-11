@@ -1,5 +1,55 @@
 export type Platform = 'coupang' | 'toss'
 
+export type StockStatus = 'available' | 'soldout' | 'unknown'
+
+export type SupplierProductSystemField =
+  | 'productCode'
+  | 'productName'
+  | 'optionName'
+  | 'category'
+  | 'price'
+  | 'stockStatus'
+  | 'courier'
+  | 'empty'
+
+export type SupplierProductColumnMapping = {
+  targetColumnIndex: number
+  targetHeaderName: string
+  systemField: SupplierProductSystemField
+}
+
+export type SupplierProductTemplate = {
+  id: string
+  supplierId: string
+  templatePath: string
+  templateFileName: string
+  sheetName: string
+  headerRow: number
+  dataStartRow: number
+  columnMappings: SupplierProductColumnMapping[]
+  lastUploadedFileName: string | null
+  lastUploadedAt: string | null
+  lastUploadedCount: number
+  lastInvalidCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type SupplierProduct = {
+  id: string
+  supplierId: string
+  productCode: string
+  productName: string
+  optionName: string
+  category: string
+  price: number | null
+  stockStatus: StockStatus
+  stockRaw: string
+  courier: string
+  extra: Record<string, unknown>
+  uploadedAt: string
+}
+
 export type AllocationStatus = 'pending' | 'ordered'
 
 export type TrackingStatus = 'matched' | 'unmatched' | 'duplicated' | 'invalid'
@@ -62,6 +112,8 @@ export type Allocation = {
   status: AllocationStatus
   isTemporaryOverride: boolean
   nameMappingApplied: boolean
+  smartAllocationApplied: boolean
+  supplierPrice?: number
   createdAt: string
   orderedAt?: string
 }

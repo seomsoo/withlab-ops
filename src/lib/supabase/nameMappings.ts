@@ -86,3 +86,56 @@ export async function deleteNameMapping(id: string): Promise<void> {
     .eq('id', id)
   if (error) throw new Error(`상품명 변환 매핑 삭제 실패: ${error.message}`)
 }
+
+export type BulkCreateResult = {
+  createdCount: number
+  skippedCount: number
+  failedCount: number
+}
+
+export async function createNameMappingsBulk(
+  items: NameMappingFormData[]
+): Promise<BulkCreateResult> {
+  let createdCount = 0
+  let skippedCount = 0
+  let failedCount = 0
+
+  for (const item of items) {
+    try {
+      const parsed = nameMappingFormSchema.parse(item)
+
+      const { data: existing } = await supabase
+        .from('name_mappings')
+        .select('id')
+        .eq('platform', parsed.platform)
+        .eq('platform_product_name', parsed.platformProductName)
+        .eq('platform_option_name', parsed.platformOptionName)
+        .eq('supplier_id', parsed.supplierId)
+        .limit(1)
+
+      if (existing && existing.length > 0) {
+        skippedCount++
+        continue
+      }
+
+      const { error } = await supabase.from('name_mappings').insert({
+        platform: parsed.platform,
+        platform_product_name: parsed.platformProductName,
+        platform_option_name: parsed.platformOptionName,
+        supplier_id: parsed.supplierId,
+        supplier_product_name: parsed.supplierProductName,
+        supplier_product_code: parsed.supplierProductCode || '',
+      })
+
+      if (error) {
+        failedCount++
+      } else {
+        createdCount++
+      }
+    } catch {
+      failedCount++
+    }
+  }
+
+  return { createdCount, skippedCount, failedCount }
+}

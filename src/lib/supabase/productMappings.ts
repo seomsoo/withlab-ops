@@ -151,13 +151,16 @@ export async function createAutoProductMapping(input: {
 }): Promise<void> {
   const { error } = await supabase
     .from('product_mappings')
-    .insert({
-      platform: input.platform,
-      product_name: input.productName,
-      option_name: input.optionName,
-      supplier_id: input.supplierId,
-      is_default: true,
-      priority: 0,
-    })
+    .upsert(
+      {
+        platform: input.platform,
+        product_name: input.productName,
+        option_name: input.optionName,
+        supplier_id: input.supplierId,
+        is_default: true,
+        priority: 0,
+      },
+      { onConflict: 'platform,product_name,option_name,supplier_id', ignoreDuplicates: true }
+    )
   if (error) throw new Error(toFriendlyDbError(error, 'product_mapping'))
 }

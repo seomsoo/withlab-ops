@@ -46,6 +46,7 @@ function makeAllocation(overrides: Partial<Allocation> = {}): Allocation {
     status: 'ordered',
     isTemporaryOverride: false,
     nameMappingApplied: false,
+    smartAllocationApplied: false,
     createdAt: '2026-05-01',
     ...overrides,
   }

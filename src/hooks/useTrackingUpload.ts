@@ -79,6 +79,8 @@ export function useTrackingUpload(workSessionId: string) {
         status: a.status,
         isTemporaryOverride: a.isTemporaryOverride,
         nameMappingApplied: a.nameMappingApplied,
+        smartAllocationApplied: a.smartAllocationApplied,
+        supplierPrice: a.supplierPrice,
         createdAt: a.createdAt,
         orderedAt: a.orderedAt,
       }))
@@ -199,6 +201,8 @@ export function useTrackingUpload(workSessionId: string) {
         status: a.status,
         isTemporaryOverride: a.isTemporaryOverride,
         nameMappingApplied: a.nameMappingApplied,
+        smartAllocationApplied: a.smartAllocationApplied,
+        supplierPrice: a.supplierPrice,
         createdAt: a.createdAt,
         orderedAt: a.orderedAt,
       }))

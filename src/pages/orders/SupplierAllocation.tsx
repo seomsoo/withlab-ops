@@ -1,9 +1,14 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { toast } from 'sonner'
 import {
   AlertCircle,
   ChevronRight,
   ArrowRight,
+  ChevronDown,
+  Upload,
+  RefreshCw,
+  Info,
 } from 'lucide-react'
 
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
@@ -28,11 +33,24 @@ import {
 import { useWorkSession } from '@/hooks/useWorkSession'
 import { useAllocation } from '@/hooks/useAllocation'
 import { useSuppliers } from '@/hooks/useSuppliers'
+import {
+  getSupplierProductCounts,
+  getAllSupplierProducts,
+  replaceSupplierProducts,
+} from '@/lib/supabase/supplierProducts'
+import {
+  getSupplierProductTemplate,
+  getSupplierProductTemplateSupplierIds,
+  updateUploadHistory,
+} from '@/lib/supabase/supplierProductTemplates'
+import { parseSupplierProducts } from '@/lib/parsers/supplierProductParser'
+import { validateExcelFile } from '@/utils/file'
+import { readExcelFile, sheetToRows } from '@/utils/excel'
 
 import { cn } from '@/lib/utils'
 
 import type { AllocationWithOrder } from '@/lib/supabase/allocations'
-import type { Supplier } from '@/types'
+import type { Supplier, SupplierProduct } from '@/types'
 
 type FilterType = 'all' | 'auto' | 'unmapped' | 'edited'
 
@@ -48,6 +66,8 @@ type AllocationGroup = {
   status: 'auto' | 'edited' | 'unmapped'
   items: AllocationWithOrder[]
   orderIds: string[]
+  smartAllocationApplied: boolean
+  supplierPrice?: number
   nameMappingApplied: boolean
 }
 
@@ -74,6 +94,29 @@ export default function SupplierAllocation() {
     newSupplierId: string
   } | null>(null)
   const [distributeDialog, setDistributeDialog] = useState<AllocationGroup | null>(null)
+  const [refreshOpen, setRefreshOpen] = useState(false)
+  const [spCounts, setSpCounts] = useState<Map<string, number>>(new Map())
+  const [spTemplateIds, setSpTemplateIds] = useState<Set<string>>(new Set())
+  const [allSp, setAllSp] = useState<SupplierProduct[]>([])
+  const [refreshingFor, setRefreshingFor] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    void (async () => {
+      try {
+        const [counts, products, templateIds] = await Promise.all([
+          getSupplierProductCounts(),
+          getAllSupplierProducts(),
+          getSupplierProductTemplateSupplierIds(),
+        ])
+        if (!alive) return
+        setSpCounts(counts)
+        setAllSp(products)
+        setSpTemplateIds(templateIds)
+      } catch { /* non-critical */ }
+    })()
+    return () => { alive = false }
+  }, [])
 
   const isReadonly = session?.status !== 'active'
   const autoAllocRan = useRef(false)
@@ -118,6 +161,8 @@ export default function SupplierAllocation() {
           items: [alloc],
           orderIds: [alloc.orderId],
           nameMappingApplied: alloc.nameMappingApplied,
+          smartAllocationApplied: alloc.smartAllocationApplied,
+          supplierPrice: alloc.supplierPrice,
         })
       }
     }
@@ -144,6 +189,7 @@ export default function SupplierAllocation() {
           items: [],
           orderIds: [order.id],
           nameMappingApplied: false,
+          smartAllocationApplied: false,
         })
       }
     }
@@ -172,6 +218,54 @@ export default function SupplierAllocation() {
       else next.add(key)
       return next
     })
+  }
+
+  async function handleRefreshProducts(supplierId: string) {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.xlsx,.xls'
+    input.onchange = async (e) => {
+      const f = (e.target as HTMLInputElement).files?.[0]
+      if (!f) return
+      try {
+        validateExcelFile(f)
+        setRefreshingFor(supplierId)
+        const tpl = await getSupplierProductTemplate(supplierId)
+        if (!tpl) { toast.error('상품 양식을 먼저 등록해주세요'); return }
+        const wb = await readExcelFile(f)
+        const sheet = wb.Sheets[tpl.sheetName] ?? wb.Sheets[wb.SheetNames[0]!]
+        if (!sheet) { toast.error('시트를 찾을 수 없습니다'); return }
+        const rows = sheetToRows(sheet)
+        const result = parseSupplierProducts({
+          rows,
+          columnMappings: tpl.columnMappings,
+          headerRow: tpl.headerRow,
+          dataStartRow: tpl.dataStartRow,
+        })
+        if (result.meta.validCount === 0) {
+          toast.error(`파싱 실패: 유효한 상품 없음`)
+          return
+        }
+        await replaceSupplierProducts(supplierId, result.products)
+        await updateUploadHistory(supplierId, {
+          lastUploadedFileName: f.name,
+          lastUploadedCount: result.meta.validCount,
+          lastInvalidCount: result.meta.invalidCount,
+        })
+        const [counts, products] = await Promise.all([
+          getSupplierProductCounts(),
+          getAllSupplierProducts(),
+        ])
+        setSpCounts(counts)
+        setAllSp(products)
+        toast.success(`${result.meta.validCount}개 상품 갱신 완료`)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '상품 갱신 실패')
+      } finally {
+        setRefreshingFor(null)
+      }
+    }
+    input.click()
   }
 
   const handleSupplierChange = useCallback(
@@ -278,6 +372,70 @@ export default function SupplierAllocation() {
             </div>
           )}
 
+          {/* 상품 목록 갱신 (접이식) */}
+          {!isReadonly && suppliers.length > 0 && (
+            <div className="mt-4 rounded-radius-md border border-line">
+              <button
+                className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-t-strong hover:bg-bg-subtle"
+                onClick={() => setRefreshOpen((v) => !v)}
+              >
+                <RefreshCw size={14} />
+                상품 목록 갱신
+                <ChevronDown
+                  size={14}
+                  className={cn(
+                    'ml-auto transition-transform',
+                    refreshOpen && 'rotate-180'
+                  )}
+                />
+              </button>
+              {refreshOpen && (
+                <div className="border-t border-line px-4 py-3">
+                  <div className="space-y-2">
+                    {suppliers.filter((s) => s.isActive).map((s) => {
+                      const count = spCounts.get(s.id)
+                      const hasTemplate = spTemplateIds.has(s.id)
+                      return (
+                        <div key={s.id} className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{s.name}</span>
+                            <span className="text-xs text-t-mute">
+                              {hasTemplate
+                                ? `${count ?? 0}개`
+                                : '양식 미등록'}
+                            </span>
+                          </div>
+                          {hasTemplate ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={refreshingFor === s.id}
+                              onClick={() => handleRefreshProducts(s.id)}
+                            >
+                              <Upload size={12} className="mr-1" />
+                              {refreshingFor === s.id ? '갱신 중...' : '갱신'}
+                            </Button>
+                          ) : (
+                            <Link to={`/mapping/suppliers/${s.id}`}>
+                              <Button variant="outline" size="sm" className="h-7 text-xs">
+                                양식 설정 →
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-3 flex items-center gap-1.5 text-xs text-t-faint">
+                    <Info size={12} />
+                    안 바뀌었으면 갱신 없이 바로 배정해도 됩니다
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="mt-4 text-xs text-t-mute">
             분배 기준: 주문 라인 단위
           </div>
@@ -337,6 +495,7 @@ export default function SupplierAllocation() {
                 expanded={expandedGroups.has(group.key)}
                 onToggle={() => toggleGroup(group.key)}
                 suppliers={suppliers}
+                supplierProducts={allSp}
                 onSupplierChange={(suppId) =>
                   handleSupplierChange(group, suppId)
                 }
@@ -430,6 +589,7 @@ function GroupRow({
   expanded,
   onToggle,
   suppliers,
+  supplierProducts,
   onSupplierChange,
   onDistribute,
   isReadonly,
@@ -438,6 +598,7 @@ function GroupRow({
   expanded: boolean
   onToggle: () => void
   suppliers: Supplier[]
+  supplierProducts: SupplierProduct[]
   onSupplierChange: (supplierId: string) => void
   onDistribute: () => void
   isReadonly: boolean
@@ -469,6 +630,16 @@ function GroupRow({
           <div className="mt-0.5 flex items-center gap-3 text-xs text-t-mute">
             <span>{group.orderCount}건</span>
             <span>총 {group.totalQuantity}개</span>
+            {group.supplierPrice !== undefined && (
+              <span className="font-mono">
+                ₩{group.supplierPrice.toLocaleString('ko-KR')}
+              </span>
+            )}
+            {group.smartAllocationApplied && (
+              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                스마트배정
+              </span>
+            )}
           </div>
         </div>
 
@@ -488,12 +659,25 @@ function GroupRow({
                   <SelectValue placeholder="공급처 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                      {!s.isActive && ' (비활성)'}
-                    </SelectItem>
-                  ))}
+                  {suppliers.map((s) => {
+                    const sp = supplierProducts.find(
+                      (p) =>
+                        p.supplierId === s.id &&
+                        p.productName === (group.items[0]?.supplierProductName ?? group.productName)
+                    )
+                    const info = sp
+                      ? `₩${sp.price?.toLocaleString('ko-KR') ?? '?'} · ${sp.stockStatus === 'available' ? '재고있음' : sp.stockStatus === 'soldout' ? '품절' : '재고미확인'}`
+                      : null
+                    return (
+                      <SelectItem key={s.id} value={s.id}>
+                        <span>{s.name}</span>
+                        {!s.isActive && ' (비활성)'}
+                        {info && (
+                          <span className="ml-1.5 text-t-mute">· {info}</span>
+                        )}
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             )}

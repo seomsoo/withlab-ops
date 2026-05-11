@@ -11,6 +11,7 @@ import {
 import { getProductMappings, switchDefaultSupplier, createAutoProductMapping } from '@/lib/supabase/productMappings'
 import { getNameMappings } from '@/lib/supabase/nameMappings'
 import { getAllSuppliers } from '@/lib/supabase/suppliers'
+import { getAllSupplierProducts } from '@/lib/supabase/supplierProducts'
 import { autoAllocate, findNameMapping } from '@/lib/allocation/autoAllocator'
 import { getOrders } from '@/lib/supabase/orders'
 
@@ -69,12 +70,13 @@ export function useAllocation(workSessionId: string) {
     if (!workSessionId) return
     try {
       setRunning(true)
-      const [orders, productMappingsRaw, nameMappingsRaw, suppliers] =
+      const [orders, productMappingsRaw, nameMappingsRaw, suppliers, supplierProducts] =
         await Promise.all([
           getOrders(workSessionId),
           getProductMappings(),
           getNameMappings(),
           getAllSuppliers(),
+          getAllSupplierProducts(),
         ])
 
       if (orders.length === 0) {
@@ -87,6 +89,7 @@ export function useAllocation(workSessionId: string) {
         productMappings: productMappingsRaw,
         nameMappings: nameMappingsRaw,
         suppliers,
+        supplierProducts,
       })
 
       if (result.allocated.length > 0) {
@@ -186,6 +189,7 @@ export function useAllocation(workSessionId: string) {
           allocatedQuantity: order.quantity,
           isTemporaryOverride: false,
           nameMappingApplied: nameResult.applied,
+          smartAllocationApplied: false,
         }
         await createAllocations(workSessionId, [pending])
 
@@ -252,6 +256,7 @@ export function useAllocation(workSessionId: string) {
               allocatedQuantity: existingAlloc?.order.quantity ?? 1,
               isTemporaryOverride: false,
               nameMappingApplied: nameResult.applied,
+              smartAllocationApplied: false,
             })
             idx++
           }
