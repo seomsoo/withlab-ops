@@ -160,7 +160,7 @@ export default function OrderUpload() {
           </span>
         </div>
 
-        <div className="flex gap-1 rounded-radius-md border border-line bg-white p-1.5 shadow-level-1">
+        <div className="flex gap-1 rounded-radius-md border border-line bg-card p-1.5 shadow-level-1">
           {TAB_ITEMS.map((tab, i) => {
             const active = tab.id === 'upload'
             return (
@@ -229,7 +229,7 @@ export default function OrderUpload() {
 
       {/* Summary cards */}
       {hasUploads && (
-        <div className="mb-4 rounded-radius-lg border border-line bg-white p-6 shadow-level-1">
+        <div className="mb-4 rounded-radius-lg border border-line bg-card p-6 shadow-level-1">
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="text-xs font-semibold text-t-mute tracking-wide">
@@ -293,7 +293,7 @@ export default function OrderUpload() {
 
       {/* Orders table */}
       {hasUploads ? (
-        <div className="rounded-radius-lg border border-line bg-white shadow-level-1 overflow-hidden">
+        <div className="rounded-radius-lg border border-line bg-card shadow-level-1 overflow-hidden">
           <div className="flex items-start justify-between px-6 py-5">
             <div>
               <div className="text-base font-bold tracking-tight">
@@ -349,7 +349,7 @@ export default function OrderUpload() {
           )}
         </div>
       ) : (
-        <div className="rounded-radius-lg border border-line bg-white py-16 text-center shadow-level-1">
+        <div className="rounded-radius-lg border border-line bg-card py-16 text-center shadow-level-1">
           <div className="text-base font-bold tracking-tight">
             플랫폼 엑셀을 업로드하면 주문 목록이 표시돼요
           </div>
@@ -361,7 +361,7 @@ export default function OrderUpload() {
       )}
 
       {/* Footer CTA */}
-      <div className="sticky bottom-0 z-10 -mx-10 mt-6 flex items-center justify-between border-t border-line bg-white/90 px-10 py-4 backdrop-blur-sm">
+      <div className="sticky bottom-0 z-10 -mx-10 mt-6 flex items-center justify-between border-t border-line bg-card/90 px-10 py-4 backdrop-blur-sm">
         <div className="text-sm">
           {upload.summary.invalid > 0 ? (
             <span className="flex items-center gap-1.5 font-semibold text-warning">
@@ -544,7 +544,7 @@ function UploadCard({
   }
 
   return (
-    <div className="rounded-radius-lg border border-line bg-white p-5 shadow-level-1">
+    <div className="rounded-radius-lg border border-line bg-card p-5 shadow-level-1">
       <div className="flex items-center gap-3 mb-4">
         <div
           className={cn(
@@ -583,7 +583,7 @@ function UploadCard({
         </div>
       ) : orderImport ? (
         <div className="flex items-center gap-3 rounded-radius-md bg-gray-50 px-4 py-3.5">
-          <div className="grid h-9 w-9 place-items-center rounded-[8px] border border-line bg-white text-primary">
+          <div className="grid h-9 w-9 place-items-center rounded-[8px] border border-line bg-card text-primary">
             <FileText size={20} />
           </div>
           <div className="flex-1 min-w-0">

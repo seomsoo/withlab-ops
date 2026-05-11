@@ -261,7 +261,7 @@ export default function PlatformTemplate() {
 
       <div className="space-y-5">
         {/* 플랫폼 탭 */}
-        <div className="flex gap-1 rounded-radius-md border border-line bg-white p-1.5 shadow-level-1">
+        <div className="flex gap-1 rounded-radius-md border border-line bg-card p-1.5 shadow-level-1">
           {(['coupang', 'toss'] as const).map((p) => (
             <button
               key={p}
@@ -280,7 +280,7 @@ export default function PlatformTemplate() {
 
         {/* 양식 등록 완료 상태 */}
         {template && !editing ? (
-          <div className="rounded-radius-md border border-line bg-white p-6 shadow-level-1">
+          <div className="rounded-radius-md border border-line bg-card p-6 shadow-level-1">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="grid h-8 w-8 place-items-center rounded-full bg-green-100">
@@ -336,7 +336,7 @@ export default function PlatformTemplate() {
           </div>
         ) : editing ? (
           /* 양식 등록 흐름 */
-          <div className="rounded-radius-md border border-line bg-white p-6 shadow-level-1">
+          <div className="rounded-radius-md border border-line bg-card p-6 shadow-level-1">
             {/* 스텝 인디케이터 */}
             <div className="mb-6 flex gap-1">
               {STEPS.map((s, i) => {

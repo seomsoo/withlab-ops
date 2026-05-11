@@ -45,7 +45,7 @@ export function TrackingTabs({
   }
 
   return (
-    <div className="flex gap-1 rounded-radius-md border border-line bg-white p-1.5 shadow-level-1">
+    <div className="flex gap-1 rounded-radius-md border border-line bg-card p-1.5 shadow-level-1">
       {TAB_ITEMS.map((tab) => {
         const active = tab.id === currentTab
         const completed = getCompleted(tab.id)

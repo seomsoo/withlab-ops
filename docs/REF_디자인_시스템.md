@@ -68,6 +68,69 @@
 | `--color-platform-common-bg` | `var(--color-gray-200)` | 공통 뱃지 배경 |
 | `--color-platform-common-text` | `var(--color-t-mid)` | 공통 뱃지 텍스트 |
 
+### 다크 테마 (`.dark` 선택자)
+
+`src/index.css`의 `.dark` 선택자에서 정의. `localStorage("withlab-theme")`으로 모드 저장.
+
+#### 표면 / 텍스트 / 보더
+
+| 토큰 | Light | Dark | 비고 |
+|------|-------|------|------|
+| `--color-bg` | `#F7F8FA` | `#0F1114` | 전체 배경 |
+| `--color-card` | `#FFFFFF` | `#1A1D23` | 카드, 모달 |
+| `--color-surface-hover` | — | `#22262E` | 다크 전용 hover |
+| `--color-line` | `#EDEFF2` | `#2A2E37` | 기본 보더 |
+| `--color-line-strong` | `#E5E8EB` | `#333840` | 강조 보더 |
+| `--color-t-strong` | `#191F28` | `#F2F4F6` | 제목 |
+| `--color-t-mid` | `#4E5968` | `#ADB5BD` | 본문 |
+| `--color-t-mute` | `#8B95A1` | `#8B95A1` | 힌트 (동일) |
+| `--color-t-faint` | `#B0B8C1` | `#6B7684` | 매우 연한 |
+
+#### 브랜드 / 시멘틱
+
+| 토큰 | Light | Dark |
+|------|-------|------|
+| `--color-primary` | `#3182F6` | `#4A9AFF` |
+| `--color-primary-hover` | `#1B64DA` | `#3182F6` |
+| `--color-primary-50` | `#EFF6FF` | `#1A2A40` |
+| `--color-primary-100` | `#DBE9FE` | `#1E3350` |
+| `--color-success` | `#34C759` | `#30D158` |
+| `--color-success-light` | `#E8F8EC` | `#0D2B1A` |
+| `--color-error` | `#FF3B30` | `#FF453A` |
+| `--color-error-light` | `#FEECEB` | `#2D1215` |
+| `--color-warning` | `#FF9500` | `#FFD60A` |
+| `--color-warning-light` | `#FFF3E0` | `#2D2A0D` |
+
+#### 그레이 스케일 (다크 리맵)
+
+다크 모드에서 gray-50~900 값을 뒤집어 Tailwind `bg-gray-*` 클래스가 자동 대응.
+
+| 토큰 | Light | Dark |
+|------|-------|------|
+| `gray-50` | `#FAFBFC` | `#1A1D23` |
+| `gray-100` | `#F7F8FA` | `#1E2128` |
+| `gray-200` | `#F2F4F6` | `#22262E` |
+| `gray-300` | `#EDEFF2` | `#2A2E37` |
+| `gray-400` | `#E5E8EB` | `#333840` |
+| `gray-500` | `#C9CDD2` | `#4E5968` |
+| `gray-600` | `#8B95A1` | `#6B7684` |
+| `gray-700` | `#6B7684` | `#8B95A1` |
+| `gray-800` | `#4E5968` | `#ADB5BD` |
+| `gray-900` | `#191F28` | `#F2F4F6` |
+
+#### shadcn 호환 토큰
+
+| 토큰 | Dark 값 |
+|------|---------|
+| `--color-background` | `#0F1114` |
+| `--color-foreground` | `#F2F4F6` |
+| `--color-popover` | `#1A1D23` |
+| `--color-muted` | `#22262E` |
+| `--color-accent` | `#22262E` |
+| `--color-input` | `#333840` |
+| `--color-ring` | `#4A9AFF` |
+| `--color-border` | `#2A2E37` |
+
 ---
 
 ## 2. 타이포그래피

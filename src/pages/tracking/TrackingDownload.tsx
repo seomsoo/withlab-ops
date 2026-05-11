@@ -212,7 +212,7 @@ export default function TrackingDownload() {
         </div>
 
         {/* 업로드 가이드 */}
-        <div className="rounded-radius-md border border-line bg-white p-6 shadow-level-1">
+        <div className="rounded-radius-md border border-line bg-card p-6 shadow-level-1">
           <div className="mb-1 text-[15px] font-bold text-t-strong">
             다운로드 후 업로드 방법
           </div>
@@ -249,7 +249,7 @@ export default function TrackingDownload() {
       </div>
 
       {/* 하단 CTA */}
-      <div className="sticky bottom-0 mt-6 flex items-center justify-between border-t border-line bg-white px-6 py-4">
+      <div className="sticky bottom-0 mt-6 flex items-center justify-between border-t border-line bg-card px-6 py-4">
         <div className="text-sm">
           {isCompleted ? (
             <span className="flex items-center gap-1 text-green-700">
@@ -357,7 +357,7 @@ function PlatformCard({
   return (
     <div
       className={cn(
-        'rounded-radius-md border bg-white p-5 shadow-level-1',
+        'rounded-radius-md border bg-card p-5 shadow-level-1',
         platform === 'coupang' ? 'border-blue-200' : 'border-indigo-200'
       )}
     >

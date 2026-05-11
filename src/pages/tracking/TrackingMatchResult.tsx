@@ -245,7 +245,7 @@ export default function TrackingMatchResult() {
         </div>
 
         {/* 테이블 */}
-        <div className="rounded-radius-md border border-line bg-white shadow-level-1 overflow-hidden">
+        <div className="rounded-radius-md border border-line bg-card shadow-level-1 overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow>
@@ -312,7 +312,7 @@ export default function TrackingMatchResult() {
       </div>
 
       {/* 하단 CTA */}
-      <div className="sticky bottom-0 mt-6 flex items-center justify-between border-t border-line bg-white px-6 py-4">
+      <div className="sticky bottom-0 mt-6 flex items-center justify-between border-t border-line bg-card px-6 py-4">
         <div className="text-sm">
           {stats.unmatched + stats.duplicated + stats.invalid > 0 ? (
             <span className="flex items-center gap-1 text-amber-600">

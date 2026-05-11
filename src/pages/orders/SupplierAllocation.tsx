@@ -408,7 +408,7 @@ function SummaryCard({
   tone?: 'success' | 'error' | 'info'
 }) {
   return (
-    <div className="rounded-radius-md border border-line bg-white px-4 py-3">
+    <div className="rounded-radius-md border border-line bg-card px-4 py-3">
       <div className="text-xs text-t-mute">{label}</div>
       <div
         className={cn(
@@ -443,7 +443,7 @@ function GroupRow({
   isReadonly: boolean
 }) {
   return (
-    <div className="rounded-radius-md border border-line bg-white">
+    <div className="rounded-radius-md border border-line bg-card">
       <div
         className="flex cursor-pointer items-center gap-3 px-4 py-3"
         onClick={onToggle}

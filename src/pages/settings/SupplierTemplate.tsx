@@ -285,7 +285,7 @@ export default function SupplierTemplate() {
                 return (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between rounded-radius-md border border-line bg-white px-4 py-3"
+                    className="flex items-center justify-between rounded-radius-md border border-line bg-card px-4 py-3"
                   >
                     <div>
                       <div className="font-semibold text-t-strong">
@@ -319,7 +319,7 @@ export default function SupplierTemplate() {
           )}
         </>
       ) : (
-        <div className="rounded-radius-md border border-line bg-white p-6">
+        <div className="rounded-radius-md border border-line bg-card p-6">
           <h2 className="mb-4 text-lg font-bold text-t-strong">
             {editTarget ? '양식 수정' : '양식 등록'}
           </h2>

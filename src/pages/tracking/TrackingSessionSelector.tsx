@@ -55,7 +55,7 @@ export default function TrackingSessionSelector() {
             return (
               <button
                 key={s.id}
-                className={`flex w-full items-center gap-4 rounded-radius-md border border-line bg-white px-5 py-4 text-left shadow-level-1 transition-colors ${
+                className={`flex w-full items-center gap-4 rounded-radius-md border border-line bg-card px-5 py-4 text-left shadow-level-1 transition-colors ${
                   config.clickable
                     ? 'hover:bg-gray-50 cursor-pointer'
                     : 'opacity-60 cursor-not-allowed'

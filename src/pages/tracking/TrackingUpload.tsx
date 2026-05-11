@@ -170,7 +170,7 @@ export default function TrackingUpload() {
 
         {/* 공급처 업로드 상태 스트립 */}
         {trackingImports.length > 0 && (
-          <div className="rounded-radius-md border border-line bg-white p-4 shadow-level-1">
+          <div className="rounded-radius-md border border-line bg-card p-4 shadow-level-1">
             <div className="mb-2 text-xs font-semibold text-t-mute">업로드된 공급처</div>
             <div className="flex flex-wrap gap-2">
               {trackingImports.map((imp) => {
@@ -193,7 +193,7 @@ export default function TrackingUpload() {
         )}
 
         {/* 01. 공급처 선택 */}
-        <section className="rounded-radius-md border border-line bg-white p-6 shadow-level-1">
+        <section className="rounded-radius-md border border-line bg-card p-6 shadow-level-1">
           <div className="mb-4 flex items-start gap-3">
             <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-white">
               01
@@ -234,7 +234,7 @@ export default function TrackingUpload() {
         </section>
 
         {/* 02. 파일 업로드 */}
-        <section className="rounded-radius-md border border-line bg-white p-6 shadow-level-1">
+        <section className="rounded-radius-md border border-line bg-card p-6 shadow-level-1">
           <div className="mb-4 flex items-start gap-3">
             <span
               className={`grid h-7 w-7 place-items-center rounded-full text-xs font-bold ${
@@ -298,7 +298,7 @@ export default function TrackingUpload() {
 
         {/* 03. 파싱 결과 */}
         {uploadResult && (
-          <section className="rounded-radius-md border border-line bg-white p-6 shadow-level-1">
+          <section className="rounded-radius-md border border-line bg-card p-6 shadow-level-1">
             <div className="mb-4 flex items-start gap-3">
               <span className="grid h-7 w-7 place-items-center rounded-full bg-primary text-xs font-bold text-white">
                 03
@@ -406,7 +406,7 @@ export default function TrackingUpload() {
       </div>
 
       {/* 하단 CTA */}
-      <div className="sticky bottom-0 mt-6 flex items-center justify-between border-t border-line bg-white px-6 py-4">
+      <div className="sticky bottom-0 mt-6 flex items-center justify-between border-t border-line bg-card px-6 py-4">
         <div className="text-sm">
           {canOpenMatch ? (
             <span className="flex items-center gap-1 text-green-700">

@@ -14,6 +14,7 @@ import {
 
 import { useAuth } from '@/hooks/useAuth'
 import { Logo } from '@/components/ui/Logo'
+import { ModeToggle } from '@/components/ModeToggle'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -136,6 +137,9 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-line p-3">
+        <div className="mb-1 flex justify-start px-2.5">
+          <ModeToggle />
+        </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-2.5 rounded-[10px] p-2.5 transition-colors hover:bg-gray-200">

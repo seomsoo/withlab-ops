@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-5
+6
 
 ## 진행 단계 전체 흐름
 
@@ -183,14 +183,38 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 - **이슈/메모**: -
 
 ### Phase 6: 대시보드 + 마무리
-- **상태**: ⬜ 대기
-- **스펙 문서**: 미작성
-- **주요 범위**: 대시보드 UI, 실제 데이터 E2E 테스트, 전체 체크리스트 검증, Vercel 배포, 사용 가이드
+- **상태**: ✅ 완료
+- **시작일**: 2026-05-10
+- **완료일**: 2026-05-11
+- **스펙 문서**: `docs/specs/PHASE_06_대시보드_마무리.md`
+- **검증 결과**: `docs/specs/PHASE_06-verify.md` — ✅ 통과 (P1: 0건, P2: 2건 수정 완료, P3: 1건 수정 완료)
 - **선행 조건**: Phase 5 ✅
-- **산출물 예정**:
-  - 대시보드 (최근 작업건, 빠른 작업, 바로가기, 미매칭 알림)
-  - Vercel 배포 설정 (vercel.json, 환경변수)
-  - 사용 가이드 문서 (사용자용 README)
+- **산출물**:
+  - [x] DB View `work_session_dashboard_view` 생성
+  - [x] `src/lib/supabase/dashboard.ts` — DashboardWorkSession, DashboardStats 타입 + API
+  - [x] `src/hooks/useDashboard.ts` — 대시보드 훅 (error, refetch 포함)
+  - [x] `src/utils/workSession.ts` — getDefaultWorkSessionName, getSessionProgress, getSessionEntryPath
+  - [x] `src/components/work-session/CreateWorkSessionDialog.tsx` — 공통 다이얼로그
+  - [x] WorkSessionSelector 공통 다이얼로그로 리팩터링
+  - [x] `src/pages/Dashboard.tsx` — 인사말, 빠른 작업, 최근 작업건, 바로가기
+  - [x] `src/components/theme-provider.tsx` + `theme-context.ts` — ThemeProvider (Vite SPA)
+  - [x] `src/hooks/useTheme.ts` — useTheme 훅
+  - [x] `src/components/ModeToggle.tsx` — DropdownMenu 방식 테마 전환
+  - [x] App.tsx에 ThemeProvider 래핑
+  - [x] `src/index.css` `.dark` — semantic token 다크 테마 토큰
+  - [x] `bg-white` → `bg-card` 하드코딩 색상 교체 (전체)
+  - [x] ModeToggle → Sidebar 하단 배치
+  - [x] `vercel.json` — SPA 리라이트 설정
+  - [x] `docs/USER_GUIDE.md` — 운영자 사용 가이드
+  - [x] `README.md` — 배포 가이드, 문서 구분 추가
+  - [x] `npm run build` 통과
+  - [x] `npm run typecheck` 통과
+  - [x] `npm run lint` 통과
+  - [x] `npm run test:run` 전체 통과 (118 tests)
+  - [x] 브라우저 테스트 (대시보드 UI, 다크모드 전환)
+  - [x] Codex P2/P3 지적사항 수정 (DB View 마이그레이션, 미매칭 쿼리, 다이얼로그 초기화)
+  - [x] `docs/REF_디자인_시스템.md` 다크 테마 토큰 섹션 추가
+- **이슈/메모**: -
 
 ---
 

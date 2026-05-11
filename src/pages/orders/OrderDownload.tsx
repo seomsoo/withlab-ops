@@ -168,7 +168,7 @@ export default function OrderDownload() {
               return (
                 <div
                   key={order.supplierId}
-                  className="rounded-radius-md border border-line bg-white p-4"
+                  className="rounded-radius-md border border-line bg-card p-4"
                 >
                   <div className="flex items-start justify-between">
                     <div>

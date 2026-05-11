@@ -9,6 +9,8 @@
 - **발주서 생성**: 공급처 양식 템플릿 기반 엑셀 자동 생성
 - **운송장 매칭**: 공급처 운송장 → 플랫폼 양식 자동 변환
 - **매핑 관리**: 공급처, 품목, 상품명, 택배사 매핑
+- **대시보드**: 최근 작업건 현황, 빠른 작업 시작, 바로가기
+- **다크모드**: 시스템/라이트/다크 테마 지원
 
 ## 기술 스택
 
@@ -48,36 +50,59 @@ npm run dev
 
 ## 환경변수
 
-| 변수 | 설명 |
-|------|------|
-| `VITE_SUPABASE_URL` | Supabase 프로젝트 URL |
-| `VITE_SUPABASE_ANON_KEY` | Supabase 퍼블릭 anon 키 |
+| 변수 | 설명 | 환경 |
+|------|------|------|
+| `VITE_SUPABASE_URL` | Supabase 프로젝트 URL | 로컬 / Vercel |
+| `VITE_SUPABASE_ANON_KEY` | Supabase 퍼블릭 anon 키 | 로컬 / Vercel |
 
 ## 프로젝트 구조
 
 ```
 src/
 ├── components/
-│   ├── ui/           # shadcn/ui 공통 컴포넌트
-│   └── layout/       # 사이드바, 페이지 헤더
+│   ├── ui/              # shadcn/ui 공통 컴포넌트
+│   ├── layout/          # 사이드바, 페이지 헤더
+│   └── work-session/    # 작업건 공통 컴포넌트
 ├── pages/
-│   ├── orders/       # 발주서 (업로드 → 배정 → 다운로드)
-│   ├── tracking/     # 운송장 (업로드 → 매칭 → 출력)
-│   ├── mapping/      # 매핑 관리
-│   └── settings/     # 양식 관리
+│   ├── orders/          # 발주서 (업로드 → 배정 → 다운로드)
+│   ├── tracking/        # 운송장 (업로드 → 매칭 → 출력)
+│   ├── mapping/         # 매핑 관리
+│   └── settings/        # 양식 관리
 ├── lib/
-│   ├── parsers/      # 엑셀 파싱
-│   ├── matching/     # 운송장 매칭 엔진
-│   ├── generators/   # 엑셀 생성
-│   ├── schemas/      # Zod 스키마
-│   └── supabase/     # Supabase 클라이언트
-├── hooks/            # 커스텀 훅
-├── types/            # TypeScript 타입
-└── utils/            # 유틸 함수
+│   ├── parsers/         # 엑셀 파싱
+│   ├── matching/        # 운송장 매칭 엔진
+│   ├── generators/      # 엑셀 생성
+│   ├── allocation/      # 자동 배정
+│   ├── schemas/         # Zod 스키마
+│   └── supabase/        # Supabase 클라이언트 + API
+├── hooks/               # 커스텀 훅
+├── types/               # TypeScript 타입
+└── utils/               # 유틸 함수
 ```
 
-## 배포
+## 배포 (Vercel)
 
-Vercel에 연결하여 `main` 브랜치 푸시 시 자동 배포.
+### 설정
 
-환경변수는 Vercel 프로젝트 Settings → Environment Variables에서 설정.
+- **Framework Preset**: Vite
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Node.js Version**: 20.x
+
+### 환경변수 설정
+
+Vercel 프로젝트 Settings → Environment Variables에서 `VITE_SUPABASE_URL`과 `VITE_SUPABASE_ANON_KEY`를 Production, Preview 환경에 설정.
+
+### SPA 라우팅
+
+`vercel.json`에 모든 경로를 `/index.html`로 리라이트하는 설정이 포함되어 있어, 직접 URL 접근 시에도 404가 발생하지 않습니다.
+
+### 플랜 주의
+
+이 프로젝트는 내부 B2B 운영 도구입니다. 실제 운영 배포 전 Vercel 플랜 정책(상업적 사용 제한)을 확인하세요. 상업적 운영 환경에서는 Pro 이상 또는 대체 호스팅(Cloudflare Pages 등)을 검토하세요.
+
+## 문서 구분
+
+- `README.md`: 개발/배포/환경변수 설정 (개발자용)
+- `docs/USER_GUIDE.md`: 운영자 사용 가이드
+- `docs/REF_*.md`: 스펙/레퍼런스
