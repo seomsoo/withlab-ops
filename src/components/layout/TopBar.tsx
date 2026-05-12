@@ -64,6 +64,10 @@ function buildBreadcrumbs(pathname: string): Crumb[] {
     return crumbs
   }
 
+  if (root === 'guide') {
+    return [{ label: '사용 가이드' }]
+  }
+
   return [{ label: 'WithLab' }]
 }
 

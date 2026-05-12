@@ -24,6 +24,7 @@ const NameMapping = lazy(() => import('@/pages/mapping/NameMapping'))
 const CourierMapping = lazy(() => import('@/pages/mapping/CourierMapping'))
 const FruitDictionary = lazy(() => import('@/pages/mapping/FruitDictionary'))
 const PlatformTemplate = lazy(() => import('@/pages/settings/PlatformTemplate'))
+const Guide = lazy(() => import('@/pages/Guide'))
 
 function PageFallback() {
   return (
@@ -90,6 +91,8 @@ export function AppRoutes() {
               path="/settings/platform-template"
               element={<PlatformTemplate />}
             />
+
+            <Route path="/guide" element={<Guide />} />
           </Route>
         </Route>
 

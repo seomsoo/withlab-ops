@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   FileUp,
   LogOut,
+  BookOpen,
 } from 'lucide-react'
 
 import { useAuth } from '@/hooks/useAuth'
@@ -49,6 +50,7 @@ const NAV_SECTIONS: (NavItem | NavSection)[] = [
       },
     ],
   },
+  { label: '사용 가이드', href: '/guide', icon: BookOpen },
 ]
 
 function isActivePath(pathname: string, href: string): boolean {
