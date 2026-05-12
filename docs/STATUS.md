@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-8
+9
 
 ## 진행 단계 전체 흐름
 
@@ -267,6 +267,25 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
     - truncate 요소 14곳에 title 속성 추가
     - favicon.svg 추가 (public/)
   - [x] `npm run build` + `npm run typecheck` + `npm run lint` + `npm run test:run` 전체 통과 (198 tests)
+- **이슈/메모**: -
+
+### Phase 9: 폴리싱 + 성능 최적화
+- **상태**: ✅ 완료
+- **시작일**: 2026-05-12
+- **완료일**: 2026-05-12
+- **선행 조건**: Phase 8 ✅
+- **산출물**:
+  - [x] 플랫폼 로고: FileSpreadsheet 아이콘 → 쿠팡/토스 실제 로고 이미지 (TrackingDownload)
+  - [x] `src/components/PlatformLogo.tsx` — 플랫폼 로고 이미지 컴포넌트
+  - [x] `public/images/coupang-logo.png` — 쿠팡 로고 (흰배경 투명 처리)
+  - [x] `public/images/toss-logo.png` — 토스 로고
+  - [x] WithLab 사이드바 폰트 크기 증가 (text-base → text-xl)
+  - [x] 로그인 페이지 SVG 아이콘 제거 (showIcon={false})
+  - [x] 테이블 한글 깨짐 수정: `break-keep` + 헤더 `whitespace-nowrap` (table.tsx)
+  - [x] Dialog 접근성 경고 수정: `aria-describedby={undefined}` (dialog.tsx)
+  - [x] OG 메타태그 추가 (og:title, og:description — 카카오톡 공유 대응)
+  - [x] 라우트별 코드 스플리팅: React.lazy + Suspense (초기 번들 2,403KB → 304KB, 87% 감소)
+  - [x] `npm run build` 통과
 - **이슈/메모**: -
 
 ---
