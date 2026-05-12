@@ -18,6 +18,7 @@ function makeOrder(overrides: Partial<StandardOrder> = {}): StandardOrder {
     orderDate: '2026-05-10',
     productName: '참외 5kg',
     optionName: '가정용',
+    displayProductName: '참외 5kg 가정용',
     quantity: 3,
     buyerName: '홍길동',
     buyerPhone: '010-1234-5678',

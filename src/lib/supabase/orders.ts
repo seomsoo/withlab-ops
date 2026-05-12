@@ -58,6 +58,7 @@ export async function saveOrders(
     order_date: o.orderDate || null,
     product_name: o.productName,
     option_name: o.optionName,
+    display_product_name: o.displayProductName,
     quantity: o.quantity,
     buyer_name: o.buyerName || null,
     buyer_phone: o.buyerPhone || null,

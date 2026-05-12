@@ -64,6 +64,7 @@ export type SystemField =
   | 'orderItemNo'
   | 'supplierProductName'
   | 'supplierProductCode'
+  | 'platformProductName'
   | 'quantity'
   | 'recipientName'
   | 'recipientPhone'
@@ -72,6 +73,7 @@ export type SystemField =
   | 'deliveryMessage'
   | 'buyerName'
   | 'buyerPhone'
+  | 'senderAddress'
   | 'empty'
 
 export type StandardOrder = {
@@ -84,6 +86,7 @@ export type StandardOrder = {
 
   productName: string
   optionName: string
+  displayProductName: string
   quantity: number
 
   buyerName: string
@@ -114,6 +117,7 @@ export type Allocation = {
   nameMappingApplied: boolean
   smartAllocationApplied: boolean
   supplierPrice?: number
+  allocationReason?: string
   createdAt: string
   orderedAt?: string
 }
@@ -123,6 +127,8 @@ export type Tracking = {
   allocationId: string | null
   status: TrackingStatus
   invalidReason?: string
+  ignored: boolean
+  ignoredReason?: string
 
   trackingCompany: string
   trackingNumber: string
@@ -154,6 +160,9 @@ export type PurchaseOrderItem = {
 
   supplierProductName: string
   supplierProductCode?: string
+  productName: string
+  optionName: string
+  displayProductName: string
   quantity: number
 
   recipientName: string
@@ -414,4 +423,21 @@ export type OrderGroup = {
   platform: Platform
   orders: StandardOrder[]
   totalQuantity: number
+}
+
+export type SynonymGroup = {
+  canonical: string
+  aliases: string[]
+}
+
+export type FruitDictionary = {
+  id: string
+  category: string
+  keywords: string[]
+  gradeSynonyms: SynonymGroup[]
+  sizeSynonyms: SynonymGroup[]
+  weightAliases: Record<string, string[]>
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
 }

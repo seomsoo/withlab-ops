@@ -164,6 +164,22 @@
     letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
   }
+
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="checkbox"],
+  [role="switch"],
+  [role="option"],
+  [role="menuitem"],
+  [role="menuitemcheckbox"],
+  [role="menuitemradio"],
+  select,
+  summary,
+  label[for],
+  a[href] {
+    cursor: pointer;
+  }
 }
 
 @keyframes spin {

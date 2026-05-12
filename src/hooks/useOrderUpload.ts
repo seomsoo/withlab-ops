@@ -14,7 +14,7 @@ import {
   deleteOrderImport,
 } from '@/lib/supabase/orders'
 
-import type { StandardOrder, OrderImport, ParseResult, Platform } from '@/types'
+import type { StandardOrder, OrderImport, ParseResult, Platform, DuplicateRow } from '@/types'
 
 export type UploadPlan = {
   file: File
@@ -137,14 +137,139 @@ export function useOrderUpload(workSessionId: string) {
     [coupangImport, tossImport]
   )
 
+  const prepareUploadAutoDetect = useCallback(
+    async (file: File): Promise<UploadPlan> => {
+      validateExcelFile(file)
+      const workbook = await readExcelFile(file)
+      const detected = detectPlatform(workbook)
+
+      if (detected === null) {
+        throw new Error('플랫폼을 자동 감지할 수 없습니다. 지원하는 파일 형식인지 확인해주세요.')
+      }
+
+      const parseResult =
+        detected === 'coupang'
+          ? parseCoupangOrders(workbook)
+          : parseTossOrders(workbook)
+
+      if (detected === 'coupang') {
+        setCoupangParseResult(parseResult)
+      } else {
+        setTossParseResult(parseResult)
+      }
+
+      if (parseResult.orders.length === 0) {
+        throw new Error('저장 가능한 정상 주문이 없습니다')
+      }
+
+      const existingImport =
+        detected === 'coupang' ? coupangImport : tossImport
+
+      return { file, platform: detected, existingImport, parseResult }
+    },
+    [coupangImport, tossImport]
+  )
+
   const commitUpload = useCallback(
     async (
       plan: UploadPlan,
-      options?: { replaceExisting?: boolean }
+      options?: { replaceExisting?: boolean; appendExisting?: boolean }
     ): Promise<void> => {
       try {
-        if (options?.replaceExisting && plan.existingImport) {
+        if (plan.existingImport && (options?.replaceExisting || options?.appendExisting)) {
+          const existingOrders = options.appendExisting
+            ? (await getOrders(workSessionId)).filter((o) => o.platform === plan.platform)
+            : []
+
           await deleteOrderImport(plan.existingImport.id)
+
+          if (options.appendExisting && existingOrders.length > 0) {
+            const existingKeys = new Set(existingOrders.map((o) => o.matchingKey))
+            const newUnique: StandardOrder[] = []
+            const newDuplicates: DuplicateRow[] = [...plan.parseResult.duplicateRows]
+
+            for (const order of plan.parseResult.orders) {
+              if (existingKeys.has(order.matchingKey)) {
+                newDuplicates.push({
+                  rowNumber: order.rawRowNumber,
+                  reason: '기존 파일과 중복',
+                  matchingKey: order.matchingKey,
+                  firstRowNumber: 0,
+                  rawData: order.rawValues,
+                })
+              } else {
+                newUnique.push(order)
+                existingKeys.add(order.matchingKey)
+              }
+            }
+
+            const mergedOrders = [...existingOrders, ...newUnique]
+            const mergedInvalid = plan.parseResult.invalidRows
+            const totalRows =
+              (plan.existingImport.totalRows) +
+              plan.parseResult.meta.totalRows
+            const dupCount = newDuplicates.length
+
+            const imp = await createOrderImport({
+              workSessionId,
+              platform: plan.platform,
+              fileName: `${plan.existingImport.fileName} + ${plan.file.name}`,
+              totalRows,
+              validCount: mergedOrders.length,
+              invalidCount: plan.existingImport.invalidCount + plan.parseResult.meta.invalidRows,
+              duplicateCount: dupCount,
+              invalidRows: mergedInvalid,
+              duplicateRows: newDuplicates,
+            })
+
+            try {
+              await saveOrders(workSessionId, imp.id, mergedOrders)
+            } catch (saveErr) {
+              await deleteOrderImport(imp.id)
+              throw saveErr
+            }
+
+            if (plan.platform === 'coupang') {
+              setCoupangImport(imp)
+              setCoupangParseResult({
+                orders: mergedOrders,
+                invalidRows: mergedInvalid,
+                duplicateRows: newDuplicates,
+                meta: {
+                  platform: plan.platform,
+                  totalRows,
+                  skippedRows: 0,
+                  validRows: mergedOrders.length,
+                  invalidRows: plan.existingImport.invalidCount + plan.parseResult.meta.invalidRows,
+                  duplicateRows: dupCount,
+                },
+              })
+            } else {
+              setTossImport(imp)
+              setTossParseResult({
+                orders: mergedOrders,
+                invalidRows: mergedInvalid,
+                duplicateRows: newDuplicates,
+                meta: {
+                  platform: plan.platform,
+                  totalRows,
+                  skippedRows: 0,
+                  validRows: mergedOrders.length,
+                  invalidRows: plan.existingImport.invalidCount + plan.parseResult.meta.invalidRows,
+                  duplicateRows: dupCount,
+                },
+              })
+            }
+
+            const freshOrders = await getOrders(workSessionId)
+            setOrders(freshOrders)
+
+            const label = plan.platform === 'coupang' ? '쿠팡' : '토스'
+            toast.success(
+              `${label} 주문 ${newUnique.length}건 추가 (총 ${mergedOrders.length}건)`
+            )
+            return
+          }
         }
 
         const imp = await createOrderImport({
@@ -199,13 +324,16 @@ export function useOrderUpload(workSessionId: string) {
     const cDup = coupangParseResult?.meta.duplicateRows ?? 0
     const tDup = tossParseResult?.meta.duplicateRows ?? 0
 
+    const productNames = new Set(orders.map((o) => `${o.productName}||${o.optionName}`))
+
     return {
       valid: cValid + tValid,
       invalid: cInvalid + tInvalid,
       duplicate: cDup + tDup,
       total: cValid + tValid + cInvalid + tInvalid + cDup + tDup,
+      productCount: productNames.size,
     }
-  }, [coupangParseResult, tossParseResult])
+  }, [coupangParseResult, tossParseResult, orders])
 
   return {
     coupangImport,
@@ -217,6 +345,7 @@ export function useOrderUpload(workSessionId: string) {
       toss: tossParseResult,
     },
     prepareUpload,
+    prepareUploadAutoDetect,
     commitUpload,
     summary,
   }

@@ -24,6 +24,18 @@ export async function generatePurchaseOrderExcel(
     throw new Error(`시트 "${template.sheetName}"를 찾을 수 없습니다`)
   }
 
+  for (let r = 1; r < template.dataStartRow; r++) {
+    const row = worksheet.getRow(r)
+    row.eachCell((cell) => {
+      if (cell.value && typeof cell.value === 'object' && 'richText' in cell.value) {
+        const plainText = cell.value.richText
+          .map((part: { text: string }) => part.text)
+          .join('')
+        cell.value = plainText
+      }
+    })
+  }
+
   const lastRowNum = worksheet.lastRow?.number ?? template.dataStartRow
 
   const firstDataRow = worksheet.getRow(template.dataStartRow)
@@ -104,6 +116,10 @@ function getValueBySystemField(
       return item.buyerName
     case 'buyerPhone':
       return applyPhoneFormat(item.buyerPhone, mapping.format)
+    case 'senderAddress':
+      return item.address
+    case 'platformProductName':
+      return item.displayProductName
     case 'empty':
       return null
   }
@@ -139,7 +155,12 @@ export function buildPurchaseOrders(
       supplierId,
       supplierName: group.supplierName,
       createdAt: new Date().toISOString(),
-      items: group.items.map((a) => ({
+      items: group.items
+        .sort((a, b) => {
+          const platformOrder = { coupang: 0, toss: 1 }
+          return (platformOrder[a.order.platform] ?? 2) - (platformOrder[b.order.platform] ?? 2)
+        })
+        .map((a) => ({
         allocationId: a.id,
         orderId: a.orderId,
         platform: a.order.platform,
@@ -148,6 +169,9 @@ export function buildPurchaseOrders(
         matchingKey: a.order.matchingKey,
         supplierProductName: a.supplierProductName,
         supplierProductCode: a.supplierProductCode,
+        productName: a.order.productName,
+        optionName: a.order.optionName,
+        displayProductName: a.order.displayProductName,
         quantity: a.order.quantity,
         recipientName: a.order.recipientName,
         recipientPhone: a.order.recipientPhone,

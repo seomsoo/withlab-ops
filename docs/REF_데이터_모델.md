@@ -17,6 +17,7 @@ type StandardOrder = {
 
   productName: string          // 등록상품명(쿠팡) / 상품명(토스)
   optionName: string           // 등록옵션명(쿠팡) / 옵션명(토스)
+  displayProductName: string   // 발주서 출력용: 쿠팡=노출상품명(옵션명)[col12] / 토스=상품명+옵션명 합침
   quantity: number             // 1 이상 정수
 
   buyerName: string
@@ -131,8 +132,11 @@ type PurchaseOrderItem = {
   orderItemNo: string
   matchingKey: string          // 발주서에 반드시 포함 → 운송장 매칭 기준
 
-  supplierProductName: string
+  supplierProductName: string  // 공급처 카탈로그 상품명
   supplierProductCode?: string
+  productName: string          // 플랫폼 등록상품명
+  optionName: string           // 플랫폼 옵션명
+  displayProductName: string   // 발주서 출력용 플랫폼 상품명
   quantity: number
 
   recipientName: string
@@ -244,9 +248,10 @@ type ColumnMappingItem = {
 type SystemField =
   | "matchingKey" | "orderNo" | "orderItemNo"
   | "supplierProductName" | "supplierProductCode"
+  | "platformProductName"      // 플랫폼 원본 상품명 (쿠팡: 노출상품명, 토스: 상품명+옵션명)
   | "quantity" | "recipientName" | "recipientPhone"
   | "zipCode" | "address" | "deliveryMessage"
-  | "buyerName" | "buyerPhone" | "empty"
+  | "buyerName" | "buyerPhone" | "senderAddress" | "empty"
 
 type SupplierTemplate = {
   id: string

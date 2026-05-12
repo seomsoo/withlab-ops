@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { Plus, Pencil, Trash2, Search, X, Check } from 'lucide-react'
+import { useState, useMemo, useCallback } from 'react'
+import { Plus, Pencil, Trash2, Search, X, Check, AlertCircle } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -10,6 +10,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import {
   Sheet,
   SheetContent,
@@ -36,8 +44,12 @@ import {
 import { useProductMappings } from '@/hooks/useProductMappings'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { productMappingFormSchema } from '@/lib/schemas'
+import { getUnmappedProducts, createProductMappingsBulk } from '@/lib/supabase/productMappings'
+import { toast } from 'sonner'
 
+import type { Platform } from '@/types'
 import type { ProductMappingWithSupplier, ProductMappingFormData } from '@/lib/schemas'
+import type { UnmappedProduct } from '@/lib/supabase/productMappings'
 
 type PlatformFilter = 'all' | 'common' | 'coupang' | 'toss'
 
@@ -58,7 +70,7 @@ const EMPTY_FORM: ProductMappingFormData = {
 }
 
 export default function ProductMapping() {
-  const { mappings, loading: mappingsLoading, create, update, remove } = useProductMappings()
+  const { mappings, loading: mappingsLoading, create, update, remove, refetch } = useProductMappings()
   const { suppliers, loading: suppliersLoading } = useSuppliers()
 
   const [search, setSearch] = useState('')
@@ -72,6 +84,58 @@ export default function ProductMapping() {
 
   const [deleteTarget, setDeleteTarget] = useState<ProductMappingWithSupplier | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [unmapped, setUnmapped] = useState<UnmappedProduct[]>([])
+  const [bulkAssignments, setBulkAssignments] = useState<Record<string, string>>({})
+  const [bulkLoading, setBulkLoading] = useState(false)
+  const [bulkSaving, setBulkSaving] = useState(false)
+
+  const openBulkDialog = useCallback(async () => {
+    setBulkOpen(true)
+    setBulkLoading(true)
+    setBulkAssignments({})
+    try {
+      const data = await getUnmappedProducts()
+      setUnmapped(data)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '조회 실패')
+    } finally {
+      setBulkLoading(false)
+    }
+  }, [])
+
+  const bulkAssignedCount = Object.values(bulkAssignments).filter(Boolean).length
+
+  async function handleBulkSave() {
+    const items: Array<{ platform: Platform; productName: string; optionName: string; supplierId: string }> = []
+    for (const [key, supplierId] of Object.entries(bulkAssignments)) {
+      if (!supplierId) continue
+      const item = unmapped.find(
+        (u) => `${u.platform}::${u.productName}::${u.optionName}` === key
+      )
+      if (item) {
+        items.push({
+          platform: item.platform,
+          productName: item.productName,
+          optionName: item.optionName,
+          supplierId,
+        })
+      }
+    }
+    if (items.length === 0) return
+    setBulkSaving(true)
+    try {
+      const count = await createProductMappingsBulk(items)
+      toast.success(`${count}건 매핑 등록 완료`)
+      setBulkOpen(false)
+      void refetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '일괄 등록 실패')
+    } finally {
+      setBulkSaving(false)
+    }
+  }
 
   const loading = mappingsLoading || suppliersLoading
 
@@ -174,10 +238,16 @@ export default function ProductMapping() {
         title="품목 ↔ 공급처 매핑"
         description="플랫폼 상품과 공급처를 연결합니다. 발주서 작성 시 자동으로 배정됩니다."
         actions={
-          <Button onClick={openCreate}>
-            <Plus size={16} />
-            매핑 추가
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => void openBulkDialog()}>
+              <AlertCircle size={16} />
+              미매핑 품목 감지
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus size={16} />
+              매핑 추가
+            </Button>
+          </div>
         }
       />
 
@@ -264,8 +334,8 @@ export default function ProductMapping() {
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-radius-lg border border-line bg-card shadow-sm">
-              <Table>
+            <div className="overflow-x-auto rounded-radius-lg border border-line bg-card shadow-sm">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow className="bg-gray-50 hover:bg-gray-50">
                     <TableHead className="w-[70px] text-xs font-semibold tracking-wider text-t-mute">
@@ -503,6 +573,90 @@ export default function ProductMapping() {
           if (!open) setDeleteTarget(null)
         }}
       />
+
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>미매핑 품목 감지</DialogTitle>
+          </DialogHeader>
+          {bulkLoading ? (
+            <div className="flex justify-center py-12">
+              <LoadingSpinner />
+            </div>
+          ) : unmapped.length === 0 ? (
+            <div className="py-12 text-center text-t-mute">
+              모든 품목이 매핑되어 있습니다
+            </div>
+          ) : (
+            <div className="max-h-[400px] overflow-y-auto rounded-radius-md border border-line">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>플랫폼</TableHead>
+                    <TableHead>상품명</TableHead>
+                    <TableHead>옵션</TableHead>
+                    <TableHead className="w-16">주문수</TableHead>
+                    <TableHead className="w-[180px]">공급처</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {unmapped.map((u) => {
+                    const key = `${u.platform}::${u.productName}::${u.optionName}`
+                    return (
+                      <TableRow key={key}>
+                        <TableCell>
+                          <Badge variant="outline" className="text-xs">
+                            {u.platform === 'coupang' ? '쿠팡' : '토스'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-sm font-medium" title={u.productName}>
+                          {u.productName}
+                        </TableCell>
+                        <TableCell className="max-w-[120px] truncate text-xs text-t-mute" title={u.optionName || undefined}>
+                          {u.optionName || '—'}
+                        </TableCell>
+                        <TableCell className="text-center font-mono text-xs">
+                          {u.orderCount}
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={bulkAssignments[key] ?? ''}
+                            onValueChange={(v) =>
+                              setBulkAssignments((prev) => ({ ...prev, [key]: v }))
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {suppliers.map((s) => (
+                                <SelectItem key={s.id} value={s.id}>
+                                  {s.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkOpen(false)}>
+              닫기
+            </Button>
+            <Button
+              disabled={bulkAssignedCount === 0 || bulkSaving}
+              onClick={() => void handleBulkSave()}
+            >
+              {bulkSaving ? '저장 중...' : `${bulkAssignedCount}건 일괄 등록`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

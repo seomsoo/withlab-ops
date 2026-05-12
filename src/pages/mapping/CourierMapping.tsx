@@ -228,8 +228,8 @@ export default function CourierMapping() {
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-radius-lg border border-line bg-card shadow-sm">
-              <Table>
+            <div className="overflow-x-auto rounded-radius-lg border border-line bg-card shadow-sm">
+              <Table className="min-w-[600px]">
                 <TableHeader>
                   <TableRow className="bg-gray-50 hover:bg-gray-50">
                     <TableHead className="text-xs font-semibold tracking-wider text-t-mute">

@@ -49,6 +49,15 @@ export async function updateWorkSessionStatus(
     throw new Error(`작업건 상태 변경 실패: ${error.message}`)
 }
 
+export async function deleteWorkSession(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('work_sessions')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error(`작업건 삭제 실패: ${error.message}`)
+}
+
 export async function completeWorkSession(
   sessionId: string
 ): Promise<void> {

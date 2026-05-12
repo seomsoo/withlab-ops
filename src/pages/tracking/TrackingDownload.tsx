@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { TrackingTabs } from '@/components/TrackingTabs'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -26,14 +27,18 @@ import {
 
 import { useWorkSession } from '@/hooks/useWorkSession'
 import { useTrackingExport } from '@/hooks/useTrackingExport'
-import { getTrackingStats } from '@/lib/supabase/trackings'
-import { getTrackingImports } from '@/lib/supabase/trackings'
+import {
+  getTrackingStats,
+  getTrackingImports,
+  getSupplierTrackingProgress,
+} from '@/lib/supabase/trackings'
 import { getPlatformTemplate } from '@/lib/supabase/platformTemplates'
 import { completeWorkSession } from '@/lib/supabase/workSessions'
 
 import { cn } from '@/lib/utils'
 
 import type { Platform } from '@/types'
+import type { SupplierTrackingProgress } from '@/lib/supabase/trackings'
 
 export default function TrackingDownload() {
   const { sessionId } = useParams<{ sessionId: string }>()
@@ -43,7 +48,7 @@ export default function TrackingDownload() {
   const { exportData, isLoading, courierWarnings, downloadPlatformFile } =
     useTrackingExport(sessionId!)
 
-  const [downloading, setDownloading] = useState<Platform | null>(null)
+  const [downloading, setDownloading] = useState<Platform | 'all' | null>(null)
   const [completeOpen, setCompleteOpen] = useState(false)
   const [downloadChecked, setDownloadChecked] = useState(false)
   const [completing, setCompleting] = useState(false)
@@ -53,6 +58,7 @@ export default function TrackingDownload() {
     coupang: boolean
     toss: boolean
   }>({ coupang: false, toss: false })
+  const [supplierProgress, setSupplierProgress] = useState<SupplierTrackingProgress[]>([])
 
   useEffect(() => {
     void Promise.all([
@@ -60,13 +66,15 @@ export default function TrackingDownload() {
       getTrackingStats(sessionId!),
       getPlatformTemplate('coupang'),
       getPlatformTemplate('toss'),
-    ]).then(([imports, stats, coupangTpl, tossTpl]) => {
+      getSupplierTrackingProgress(sessionId!),
+    ]).then(([imports, stats, coupangTpl, tossTpl, progress]) => {
       setHasImports(imports.length > 0)
       setUnmatchedTotal(stats.unmatched + stats.duplicated + stats.invalid)
       setTemplateStatus({
         coupang: !!coupangTpl,
         toss: !!tossTpl,
       })
+      setSupplierProgress(progress)
     })
   }, [sessionId])
 
@@ -88,6 +96,23 @@ export default function TrackingDownload() {
     },
     [downloadPlatformFile]
   )
+
+  const handleDownloadAll = useCallback(async () => {
+    setDownloading('all')
+    try {
+      if (exportData.coupang.count > 0 && templateStatus.coupang) {
+        await downloadPlatformFile('coupang')
+      }
+      if (exportData.toss.count > 0 && templateStatus.toss) {
+        await downloadPlatformFile('toss')
+      }
+      toast.success('전체 다운로드 완료')
+    } catch {
+      // handled in hook
+    } finally {
+      setDownloading(null)
+    }
+  }, [downloadPlatformFile, exportData, templateStatus])
 
   const handleComplete = useCallback(async () => {
     try {
@@ -139,6 +164,25 @@ export default function TrackingDownload() {
           canOpenDownload={canOpenDownload}
         />
 
+        {supplierProgress.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {supplierProgress.map((sp) => (
+              <div
+                key={sp.supplierId}
+                className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-xs"
+              >
+                <span className={sp.uploadedCount > 0 ? 'text-green-600' : 'text-t-mute'}>
+                  {sp.uploadedCount > 0 ? '✓' : '○'}
+                </span>
+                <span className="font-medium text-t-strong">{sp.supplierName}</span>
+                <span className="text-t-mute">
+                  {sp.matchedCount}/{sp.totalAllocations}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* 미매칭 경고 배너 */}
         {unmatchedTotal > 0 && (
           <div className="flex items-start gap-3 rounded-radius-md border border-amber-200 bg-amber-50 px-4 py-3">
@@ -183,11 +227,47 @@ export default function TrackingDownload() {
           </div>
         )}
 
-        {/* 안내 */}
-        <div className="flex items-center gap-2 text-sm text-t-mute">
-          <Check size={14} className="text-green-600" />
-          매칭된 운송장만 다운로드 파일에 포함됩니다.
+        {/* 안내 + 전체 다운로드 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm text-t-mute">
+            <Check size={14} className="text-green-600" />
+            매칭된 운송장만 다운로드 파일에 포함됩니다.
+          </div>
+          {totalMatched > 0 && (
+            <Button
+              disabled={downloading !== null}
+              onClick={() => void handleDownloadAll()}
+            >
+              <Download size={14} />
+              {downloading === 'all' ? '다운로드 중...' : '전체 다운로드'}
+            </Button>
+          )}
         </div>
+
+        {/* 다운로드 요약 */}
+        {totalMatched > 0 && (
+          <div className="rounded-radius-md border border-line bg-card shadow-level-1 overflow-hidden">
+            <div className="border-b border-line bg-bg-subtle px-4 py-2 text-xs font-semibold text-t-secondary">
+              다운로드 미리보기
+            </div>
+            <div className="grid grid-cols-2 gap-4 p-4">
+              <div className="flex items-center gap-3">
+                <Badge variant="outline">쿠팡</Badge>
+                <span className="text-sm font-medium">{exportData.coupang.count}건</span>
+                {!templateStatus.coupang && exportData.coupang.count > 0 && (
+                  <span className="text-xs text-amber-600">양식 미등록</span>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Badge variant="outline">토스</Badge>
+                <span className="text-sm font-medium">{exportData.toss.count}건</span>
+                {!templateStatus.toss && exportData.toss.count > 0 && (
+                  <span className="text-xs text-amber-600">양식 미등록</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 플랫폼별 다운로드 카드 */}
         <div className="grid grid-cols-2 gap-4">

@@ -205,7 +205,7 @@ describe('trackingExportGenerator', () => {
     expect(() => validateNoDuplicateAllocations(items)).toThrow('중복 매칭된 주문이 있습니다')
   })
 
-  it('기존 데이터 clear — 양식에 남은 샘플 데이터 제거 확인', async () => {
+  it('기존 데이터 행 삭제 — 양식에 남은 샘플 데이터 제거 확인', async () => {
     const blob = await createCoupangBlob(5)
     const exportData: StandardTrackingExport = {
       id: 'export-7',
@@ -219,11 +219,12 @@ describe('trackingExportGenerator', () => {
     await wb.xlsx.load(await resultBlob.arrayBuffer())
     const ws = wb.getWorksheet('Delivery')!
 
+    expect(ws.lastRow?.number).toBe(2)
     expect(ws.getRow(3).getCell(3).value).toBeNull()
     expect(ws.getRow(4).getCell(3).value).toBeNull()
   })
 
-  it('items < 기존 행 → 남은 행 값 clear', async () => {
+  it('items < 기존 행 → 남은 행 삭제', async () => {
     const blob = await createCoupangBlob(3)
     const exportData: StandardTrackingExport = {
       id: 'export-8',
@@ -237,6 +238,7 @@ describe('trackingExportGenerator', () => {
     await wb.xlsx.load(await resultBlob.arrayBuffer())
     const ws = wb.getWorksheet('Delivery')!
 
+    expect(ws.lastRow?.number).toBe(2)
     expect(ws.getRow(2).getCell(3).value).toBe('NEW')
     expect(ws.getRow(3).getCell(3).value).toBeNull()
   })

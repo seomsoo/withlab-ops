@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-7
+8
 
 ## 진행 단계 전체 흐름
 
@@ -240,6 +240,35 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
   - [x] `npm run build` + `npm run typecheck` + `npm run lint` + `npm run test:run` 전체 통과 (159 tests)
 - **이슈/메모**: useMatchSuggestions 인터페이스가 스펙과 미세하게 다름 (기능적 동치, 수용)
 
+### Phase 8: UX 전면 개선 + 상품명 매칭 엔진
+- **상태**: ✅ 검증 통과
+- **시작일**: 2026-05-11
+- **완료일**: 2026-05-12
+- **스펙 문서**: `docs/specs/PHASE_08_UX_매칭엔진.md`
+- **검증 결과**: `docs/specs/PHASE_08-verify.md` — ✅ 통과 (P1: 1건 수정 완료, P2: 2건 수정 완료)
+- **선행 조건**: Phase 7 ✅
+- **산출물**:
+  - [x] 실데이터 테스트: displayProductName + platformProductName + senderAddress + 발주서 정렬 + 배치 toast
+  - [x] ExcelJS richText 손상 수정 (발주서/운송장 생성기)
+  - [x] 작업건 삭제 + 발주 되돌리기 + 공급처별 배정 삭제 (revert_order_session RPC)
+  - [x] 8-C: 상품명 매칭 엔진 (정규화 + 속성 추출 + 속성 매칭 + autoAllocator 통합)
+  - [x] 8-C: 과일 사전 DB + 타입 + CRUD API + Hook + 관리 UI
+  - [x] 8-A: 배정 페이지 (SupplierPickerPopover + allocationReason Tooltip + 후보 비교 + 대시보드)
+  - [x] 8-B: 매핑관리 (MappingLayout + 온보딩 + 일괄등록 + 인라인 매핑)
+  - [x] 8-F: 운송장 (공급처 진행 + 필터 + 벌크 액션 + 전체 다운로드)
+  - [x] 8-D+E: 업로드 통합 드롭존 + 다운로드 비용 요약
+  - [x] 8-G: 글로벌 UX (브레드크럼 + 스켈레톤)
+  - [x] 8-UI: 디자인 품질 개선 (반응형 + 접근성 + 일관성)
+    - 사이드바 SVG 로고 제거 (showIcon prop)
+    - cursor-pointer 글로벌 CSS 적용 (button, a, select, ARIA role)
+    - 테이블 반응형 (8곳 overflow-x-auto + min-width)
+    - 사이드바 ↔ TopBar 가로선 정렬 (h-16 통일)
+    - 매칭됨 뱃지 whitespace-nowrap
+    - truncate 요소 14곳에 title 속성 추가
+    - favicon.svg 추가 (public/)
+  - [x] `npm run build` + `npm run typecheck` + `npm run lint` + `npm run test:run` 전체 통과 (198 tests)
+- **이슈/메모**: -
+
 ---
 
 ## 의사결정 로그
@@ -249,7 +278,15 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
 
 | 날짜 | 단계 | 결정 내용 | 사유 |
 |------|------|----------|------|
-| - | - | - | - |
+| 2026-05-12 | 8 | 발주서 품목명에 `platformProductName` 시스템 필드 추가 | B업체는 플랫폼 원본 상품명 사용 (쿠팡=노출상품명, 토스=상품명+옵션명). A업체용 `supplierProductName`도 유지 |
+| 2026-05-12 | 8 | 토스 헤더 동적 감지 (고정 인덱스 → 0~9행 스캔) | 토스가 안내문구 행을 추가하여 헤더 위치 변동 |
+| 2026-05-12 | 8 | 같은 플랫폼 파일 합치기(append) 기능 추가 | 쿠팡 주문목록 1+2 두 파일을 합쳐서 업로드하는 실제 운영 패턴 |
+| 2026-05-12 | 8 | 발주서 정렬: 쿠팡 → 토스 순 | 수동 작업과 동일한 순서 유지 |
+| 2026-05-12 | 8 | `senderAddress` 시스템 필드 추가 (= 수취인 주소) | B업체 발주서 양식에 보내는분 주소 필요, 실제 데이터는 수취인 주소와 동일 |
+| 2026-05-12 | 8 | 작업건 삭제 기능 추가 (cascade) | 잘못 생성한 작업건을 목록에서 제거할 수 있어야 함 |
+| 2026-05-12 | 8 | 발주 되돌리기 RPC 추가 (revert_order_session) | 발주 완료 후에도 배정 수정이 필요한 경우 대비 |
+| 2026-05-12 | 8 | 공급처별 배정 삭제 기능 추가 | 특정 공급처 배정만 제거하고 재배정할 수 있어야 함 |
+| 2026-05-12 | 8 | 운송장 생성을 ExcelJS → JSZip 방식으로 전환 | ExcelJS 재직렬화 시 토스 양식 XML 구조 변경 → "내용에 문제가 있습니다" 경고. JSZip으로 시트 XML만 편집하여 원본 구조 보존 |
 
 ## 알려진 이슈
 

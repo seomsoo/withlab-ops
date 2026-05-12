@@ -143,6 +143,87 @@ export async function switchDefaultSupplier(input: {
   }
 }
 
+export type UnmappedProduct = {
+  platform: Platform
+  productName: string
+  optionName: string
+  orderCount: number
+}
+
+export async function getUnmappedProducts(): Promise<UnmappedProduct[]> {
+  const { data: orders, error: ordErr } = await supabase
+    .from('orders')
+    .select('platform, product_name, option_name')
+    .order('created_at', { ascending: false })
+    .limit(2000)
+  if (ordErr) throw new Error(`주문 조회 실패: ${ordErr.message}`)
+
+  const { data: mappings, error: mapErr } = await supabase
+    .from('product_mappings')
+    .select('platform, product_name, option_name')
+  if (mapErr) throw new Error(`매핑 조회 실패: ${mapErr.message}`)
+
+  const mappedKeys = new Set(
+    (mappings ?? []).map(
+      (m: { platform: string; product_name: string; option_name: string }) =>
+        `${m.platform}::${m.product_name}::${m.option_name}`
+    )
+  )
+
+  const counts = new Map<string, { platform: Platform; productName: string; optionName: string; count: number }>()
+  for (const o of orders ?? []) {
+    const key = `${o.platform as string}::${o.product_name as string}::${o.option_name as string}`
+    if (mappedKeys.has(key)) continue
+    const commonKey = `common::${o.product_name as string}::${o.option_name as string}`
+    if (mappedKeys.has(commonKey)) continue
+
+    const existing = counts.get(key)
+    if (existing) {
+      existing.count++
+    } else {
+      counts.set(key, {
+        platform: o.platform as Platform,
+        productName: o.product_name as string,
+        optionName: (o.option_name as string) ?? '',
+        count: 1,
+      })
+    }
+  }
+
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count)
+    .map((v) => ({
+      platform: v.platform,
+      productName: v.productName,
+      optionName: v.optionName,
+      orderCount: v.count,
+    }))
+}
+
+export async function createProductMappingsBulk(
+  items: Array<{
+    platform: Platform
+    productName: string
+    optionName: string
+    supplierId: string
+  }>
+): Promise<number> {
+  if (items.length === 0) return 0
+  const rows = items.map((i) => ({
+    platform: i.platform,
+    product_name: i.productName,
+    option_name: i.optionName,
+    supplier_id: i.supplierId,
+    is_default: true,
+    priority: 0,
+  }))
+  const { error } = await supabase
+    .from('product_mappings')
+    .upsert(rows, { onConflict: 'platform,product_name,option_name,supplier_id', ignoreDuplicates: true })
+  if (error) throw new Error(`일괄 매핑 등록 실패: ${error.message}`)
+  return items.length
+}
+
 export async function createAutoProductMapping(input: {
   platform: Platform
   productName: string

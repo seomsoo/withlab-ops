@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import {
   getWorkSessions,
   createWorkSession,
+  deleteWorkSession,
 } from '@/lib/supabase/workSessions'
 
 import type { WorkSession } from '@/types'
@@ -65,5 +66,21 @@ export function useWorkSessions() {
     [refreshSessions]
   )
 
-  return { sessions, loading, createSession, refreshSessions }
+  const removeSession = useCallback(
+    async (id: string): Promise<void> => {
+      try {
+        await deleteWorkSession(id)
+        toast.success('작업건이 삭제되었습니다')
+        await refreshSessions()
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '삭제에 실패했습니다'
+        toast.error(message)
+        throw err
+      }
+    },
+    [refreshSessions]
+  )
+
+  return { sessions, loading, createSession, removeSession, refreshSessions }
 }

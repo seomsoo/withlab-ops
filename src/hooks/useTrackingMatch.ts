@@ -114,5 +114,6 @@ export function useTrackingMatch(workSessionId: string) {
     filteredTrackings,
     filter,
     setFilter,
+    refetch: fetchData,
   }
 }

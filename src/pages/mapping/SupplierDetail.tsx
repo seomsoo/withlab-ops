@@ -46,7 +46,8 @@ import type { SupplierFormData } from '@/lib/schemas'
 
 const SYSTEM_FIELDS: { value: SystemField; label: string; required: boolean }[] = [
   { value: 'matchingKey', label: '매칭키 (주문번호)', required: true },
-  { value: 'supplierProductName', label: '공급처 상품명', required: true },
+  { value: 'supplierProductName', label: '공급처 상품명', required: false },
+  { value: 'platformProductName', label: '플랫폼 상품명 (쿠팡: 노출상품명, 토스: 상품명+옵션명)', required: false },
   { value: 'quantity', label: '수량', required: true },
   { value: 'recipientName', label: '수취인명', required: true },
   { value: 'recipientPhone', label: '수취인 연락처', required: true },
@@ -58,12 +59,12 @@ const SYSTEM_FIELDS: { value: SystemField; label: string; required: boolean }[] 
   { value: 'deliveryMessage', label: '배송메시지', required: false },
   { value: 'buyerName', label: '주문자명', required: false },
   { value: 'buyerPhone', label: '주문자 연락처', required: false },
+  { value: 'senderAddress', label: '보내는분 주소 (=수취인 주소)', required: false },
   { value: 'empty', label: '(빈 칸)', required: false },
 ]
 
 const REQUIRED_FIELDS: SystemField[] = [
   'matchingKey',
-  'supplierProductName',
   'quantity',
   'recipientName',
   'recipientPhone',
@@ -108,6 +109,11 @@ function validateMappings(columnMappings: ColumnMappingItem[]): string | null {
       (f) => SYSTEM_FIELDS.find((sf) => sf.value === f)?.label ?? f
     )
     return `필수 필드 미매핑: ${labels.join(', ')}`
+  }
+  const hasProductName =
+    mappedFields.has('supplierProductName') || mappedFields.has('platformProductName')
+  if (!hasProductName) {
+    return '품목명 필드 미매핑: 공급처 상품명 또는 플랫폼 상품명 중 하나를 매핑하세요'
   }
   return null
 }
@@ -1029,7 +1035,7 @@ export default function SupplierDetail() {
             </div>
 
             <div className="max-h-[400px] overflow-auto rounded-md border border-line">
-              <table className="w-full text-sm">
+              <table className="min-w-[600px] w-full text-sm">
                 <thead className="sticky top-0 bg-bg-subtle">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-medium text-t-mute">
@@ -1044,10 +1050,10 @@ export default function SupplierDetail() {
                     <th className="px-3 py-2 text-right text-xs font-medium text-t-mute">
                       가격
                     </th>
-                    <th className="px-3 py-2 text-center text-xs font-medium text-t-mute">
+                    <th className="whitespace-nowrap px-3 py-2 text-center text-xs font-medium text-t-mute">
                       재고
                     </th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-t-mute">
+                    <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium text-t-mute">
                       택배사
                     </th>
                   </tr>
@@ -1060,7 +1066,7 @@ export default function SupplierDetail() {
                         <td className="px-3 py-1.5 font-mono text-xs text-t-mute">
                           {p.productCode || '-'}
                         </td>
-                        <td className="max-w-[200px] truncate px-3 py-1.5">
+                        <td className="max-w-[200px] truncate px-3 py-1.5" title={p.productName}>
                           {p.productName}
                         </td>
                         <td className="px-3 py-1.5 text-t-mute">

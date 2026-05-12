@@ -11,7 +11,7 @@ import {
   Info,
 } from 'lucide-react'
 
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { PageSkeleton } from '@/components/ui/PageSkeleton'
 import { OrderTabs } from '@/components/OrderTabs'
 import { PlatformBadge } from '@/components/PlatformBadge'
 import { Button } from '@/components/ui/button'
@@ -29,15 +29,30 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Input } from '@/components/ui/input'
 
 import { useWorkSession } from '@/hooks/useWorkSession'
 import { useAllocation } from '@/hooks/useAllocation'
 import { useSuppliers } from '@/hooks/useSuppliers'
+import { useFruitDictionary } from '@/hooks/useFruitDictionary'
+import { extractAttributes } from '@/lib/matching/attributeExtractor'
 import {
   getSupplierProductCounts,
   getAllSupplierProducts,
   replaceSupplierProducts,
 } from '@/lib/supabase/supplierProducts'
+import { createAutoProductMapping } from '@/lib/supabase/productMappings'
 import {
   getSupplierProductTemplate,
   getSupplierProductTemplateSupplierIds,
@@ -50,9 +65,11 @@ import { readExcelFile, sheetToRows } from '@/utils/excel'
 import { cn } from '@/lib/utils'
 
 import type { AllocationWithOrder } from '@/lib/supabase/allocations'
+import type { SuggestedAllocation } from '@/lib/allocation/autoAllocator'
+import type { MatchCandidate } from '@/lib/matching/attributeMatcher'
 import type { Supplier, SupplierProduct } from '@/types'
 
-type FilterType = 'all' | 'auto' | 'unmapped' | 'edited'
+type FilterType = 'all' | 'auto' | 'suggested' | 'unmapped' | 'edited'
 
 type AllocationGroup = {
   key: string
@@ -63,12 +80,16 @@ type AllocationGroup = {
   totalQuantity: number
   supplierId: string | null
   supplierName: string | null
-  status: 'auto' | 'edited' | 'unmapped'
+  status: 'auto' | 'edited' | 'unmapped' | 'suggested'
   items: AllocationWithOrder[]
   orderIds: string[]
   smartAllocationApplied: boolean
   supplierPrice?: number
+  supplierProductName?: string
+  supplierProductCode?: string
   nameMappingApplied: boolean
+  allocationReason?: string
+  topCandidate?: MatchCandidate
 }
 
 export default function SupplierAllocation() {
@@ -78,21 +99,21 @@ export default function SupplierAllocation() {
   const {
     allocations,
     unallocatedOrders,
+    suggested,
     loading: allocLoading,
     running,
     runAutoAllocation,
     updateGroupSupplier,
     assignUnmatched,
+    applySuggested,
     distributeGroup,
+    changeSupplierProduct,
   } = useAllocation(sessionId ?? '')
   const { suppliers } = useSuppliers()
+  const { dictionaries: fruitDictionary } = useFruitDictionary(true)
 
   const [filter, setFilter] = useState<FilterType>('all')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const [changeDialog, setChangeDialog] = useState<{
-    group: AllocationGroup
-    newSupplierId: string
-  } | null>(null)
   const [distributeDialog, setDistributeDialog] = useState<AllocationGroup | null>(null)
   const [refreshOpen, setRefreshOpen] = useState(false)
   const [spCounts, setSpCounts] = useState<Map<string, number>>(new Map())
@@ -135,6 +156,14 @@ export default function SupplierAllocation() {
     }
   }, [allocLoading, allocations.length, unallocatedOrders.length, running, isReadonly, runAutoAllocation])
 
+  const suggestedMap = useMemo(() => {
+    const map = new Map<string, SuggestedAllocation>()
+    for (const s of suggested) {
+      map.set(s.orderId, s)
+    }
+    return map
+  }, [suggested])
+
   const groups = useMemo((): AllocationGroup[] => {
     const groupMap = new Map<string, AllocationGroup>()
 
@@ -163,17 +192,26 @@ export default function SupplierAllocation() {
           nameMappingApplied: alloc.nameMappingApplied,
           smartAllocationApplied: alloc.smartAllocationApplied,
           supplierPrice: alloc.supplierPrice,
+          supplierProductName: alloc.supplierProductName,
+          supplierProductCode: alloc.supplierProductCode,
+          allocationReason: alloc.allocationReason,
         })
       }
     }
 
     for (const order of unallocatedOrders) {
       const key = `${order.productName}||${order.optionName}`
+      const sug = suggestedMap.get(order.id)
       const existing = groupMap.get(key)
       if (existing) {
         existing.orderCount++
         existing.totalQuantity += order.quantity
-        existing.status = 'unmapped'
+        if (existing.status !== 'suggested') {
+          existing.status = sug ? 'suggested' : 'unmapped'
+        }
+        if (sug && !existing.topCandidate && sug.candidates.length > 0) {
+          existing.topCandidate = sug.candidates[0]
+        }
         existing.orderIds.push(order.id)
       } else {
         groupMap.set(key, {
@@ -185,22 +223,24 @@ export default function SupplierAllocation() {
           totalQuantity: order.quantity,
           supplierId: null,
           supplierName: null,
-          status: 'unmapped',
+          status: sug ? 'suggested' : 'unmapped',
           items: [],
           orderIds: [order.id],
           nameMappingApplied: false,
           smartAllocationApplied: false,
+          topCandidate: sug?.candidates[0],
         })
       }
     }
 
     return Array.from(groupMap.values())
-  }, [allocations, unallocatedOrders])
+  }, [allocations, unallocatedOrders, suggestedMap])
 
   const counts = useMemo(() => {
     return {
       all: groups.length,
       auto: groups.filter((g) => g.status === 'auto').length,
+      suggested: groups.filter((g) => g.status === 'suggested').length,
       unmapped: groups.filter((g) => g.status === 'unmapped').length,
       edited: groups.filter((g) => g.status === 'edited').length,
     }
@@ -269,39 +309,25 @@ export default function SupplierAllocation() {
   }
 
   const handleSupplierChange = useCallback(
-    (group: AllocationGroup, newSupplierId: string) => {
-      if (group.status === 'unmapped') {
-        const promises = group.orderIds.map((oid) =>
-          assignUnmatched(oid, newSupplierId)
-        )
-        Promise.all(promises).catch(() => {})
+    async (group: AllocationGroup, newSupplierId: string, mode: 'today' | 'default') => {
+      if (group.status === 'unmapped' || group.status === 'suggested') {
+        await assignUnmatched(group.orderIds, newSupplierId)
       } else {
-        setChangeDialog({ group, newSupplierId })
+        await updateGroupSupplier(
+          group.orderIds,
+          newSupplierId,
+          group.platform as 'coupang' | 'toss',
+          group.productName,
+          group.optionName,
+          mode === 'today'
+        )
       }
     },
-    [assignUnmatched]
-  )
-
-  const handleChangeConfirm = useCallback(
-    async (mode: 'today' | 'default') => {
-      if (!changeDialog) return
-      const { group, newSupplierId } = changeDialog
-
-      await updateGroupSupplier(
-        group.orderIds,
-        newSupplierId,
-        group.platform as 'coupang' | 'toss',
-        group.productName,
-        group.optionName,
-        mode === 'today'
-      )
-      setChangeDialog(null)
-    },
-    [changeDialog, updateGroupSupplier]
+    [assignUnmatched, updateGroupSupplier]
   )
 
   if (sessionLoading || allocLoading) {
-    return <LoadingSpinner />
+    return <PageSkeleton />
   }
 
   if (!session || !sessionId) {
@@ -352,8 +378,44 @@ export default function SupplierAllocation() {
         </div>
       ) : (
         <>
+          {counts.suggested > 0 && (
+            <div className="mt-4 flex items-center gap-3 rounded-radius-md border border-warning-dark/20 bg-warning-light px-4 py-3">
+              <Info size={18} className="text-warning-dark" />
+              <div className="text-sm">
+                <span className="font-semibold text-warning-dark">
+                  추천 {counts.suggested}건
+                </span>
+                <span className="text-t-secondary ml-1">
+                  — 속성 매칭으로 공급처를 추천했습니다
+                </span>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  className="text-xs font-medium text-primary hover:underline"
+                  onClick={() => setFilter('suggested')}
+                >
+                  추천만 보기
+                </button>
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    const suggestedOrderIds = groups
+                      .filter((g) => g.status === 'suggested')
+                      .flatMap((g) => g.orderIds.filter((oid) => suggestedMap.has(oid)))
+                    if (suggestedOrderIds.length > 0) {
+                      void applySuggested(suggestedOrderIds)
+                    }
+                  }}
+                >
+                  전체 추천 적용
+                </Button>
+              </div>
+            </div>
+          )}
+
           {counts.unmapped > 0 && (
-            <div className="mt-4 flex items-center gap-3 rounded-radius-md border border-status-error/20 bg-red-50 px-4 py-3">
+            <div className="mt-4 flex items-center gap-3 rounded-radius-md border border-error-dark/20 bg-error-light px-4 py-3">
               <AlertCircle size={18} className="text-status-error" />
               <div className="text-sm">
                 <span className="font-semibold text-status-error">
@@ -442,7 +504,7 @@ export default function SupplierAllocation() {
 
           {/* Filter bar */}
           <div className="mt-3 flex items-center gap-2">
-            {(['all', 'auto', 'unmapped', 'edited'] as FilterType[]).map(
+            {(['all', 'auto', 'suggested', 'unmapped', 'edited'] as FilterType[]).map(
               (f) => (
                 <button
                   key={f}
@@ -456,6 +518,7 @@ export default function SupplierAllocation() {
                 >
                   {f === 'all' && '전체'}
                   {f === 'auto' && '자동배정'}
+                  {f === 'suggested' && '추천'}
                   {f === 'unmapped' && '미분류'}
                   {f === 'edited' && '수정됨'}
                   <span className="ml-1 opacity-70">
@@ -467,12 +530,17 @@ export default function SupplierAllocation() {
           </div>
 
           {/* Summary */}
-          <div className="mt-4 grid grid-cols-4 gap-3">
+          <div className="mt-4 grid grid-cols-6 gap-3">
             <SummaryCard label="총 품목" value={groups.length} />
             <SummaryCard
               label="자동배정"
               value={counts.auto}
               tone="success"
+            />
+            <SummaryCard
+              label="추천"
+              value={counts.suggested}
+              tone="warning"
             />
             <SummaryCard
               label="미분류"
@@ -484,6 +552,7 @@ export default function SupplierAllocation() {
               value={counts.edited}
               tone="info"
             />
+            <EstimatedCostCard groups={groups} />
           </div>
 
           {/* Groups */}
@@ -496,10 +565,14 @@ export default function SupplierAllocation() {
                 onToggle={() => toggleGroup(group.key)}
                 suppliers={suppliers}
                 supplierProducts={allSp}
-                onSupplierChange={(suppId) =>
-                  handleSupplierChange(group, suppId)
+                fruitDictionary={fruitDictionary}
+                suggestedMap={suggestedMap}
+                onSupplierChange={(suppId, mode) =>
+                  handleSupplierChange(group, suppId, mode)
                 }
+                onChangeSupplierProduct={changeSupplierProduct}
                 onDistribute={() => setDistributeDialog(group)}
+                onApplySuggested={applySuggested}
                 isReadonly={isReadonly}
               />
             ))}
@@ -509,7 +582,7 @@ export default function SupplierAllocation() {
           {!isReadonly && (
             <div className="mt-6 flex justify-end border-t border-line pt-4">
               <Button
-                disabled={counts.unmapped > 0}
+                disabled={counts.unmapped > 0 || counts.suggested > 0}
                 onClick={() =>
                   navigate(`/orders/${sessionId}/download`)
                 }
@@ -520,19 +593,6 @@ export default function SupplierAllocation() {
             </div>
           )}
         </>
-      )}
-
-      {/* Change Supplier Dialog */}
-      {changeDialog && (
-        <ChangeSupplierDialog
-          supplierName={
-            suppliers.find((s) => s.id === changeDialog.newSupplierId)
-              ?.name ?? ''
-          }
-          onTodayOnly={() => handleChangeConfirm('today')}
-          onChangeDefault={() => handleChangeConfirm('default')}
-          onCancel={() => setChangeDialog(null)}
-        />
       )}
 
       {/* Distribute Dialog */}
@@ -564,7 +624,7 @@ function SummaryCard({
 }: {
   label: string
   value: number
-  tone?: 'success' | 'error' | 'info'
+  tone?: 'success' | 'error' | 'warning' | 'info'
 }) {
   return (
     <div className="rounded-radius-md border border-line bg-card px-4 py-3">
@@ -574,6 +634,7 @@ function SummaryCard({
           'mt-1 text-xl font-bold',
           tone === 'success' && 'text-status-success',
           tone === 'error' && 'text-status-error',
+          tone === 'warning' && 'text-status-warning',
           tone === 'info' && 'text-primary',
           !tone && 'text-t-strong'
         )}
@@ -584,14 +645,322 @@ function SummaryCard({
   )
 }
 
+function EstimatedCostCard({ groups }: { groups: AllocationGroup[] }) {
+  const { total, unknownCount } = useMemo(() => {
+    let sum = 0
+    let unknown = 0
+    for (const g of groups) {
+      if (g.supplierPrice != null) {
+        sum += g.supplierPrice * g.totalQuantity
+      } else {
+        unknown++
+      }
+    }
+    return { total: sum, unknownCount: unknown }
+  }, [groups])
+
+  return (
+    <div className="rounded-radius-md border border-line bg-card px-4 py-3">
+      <div className="text-xs text-t-mute">예상 발주금액</div>
+      <div className="mt-1 text-xl font-bold text-t-strong">
+        {total > 0
+          ? `₩${total.toLocaleString('ko-KR')}`
+          : '—'}
+      </div>
+      {unknownCount > 0 && (
+        <div className="mt-0.5 text-[11px] text-status-warning">
+          가격 미확인 {unknownCount}건
+        </div>
+      )}
+    </div>
+  )
+}
+
+function SupplierPickerPopover({
+  group,
+  suppliers,
+  supplierProducts,
+  matchCandidates,
+  compact,
+  onSelect,
+}: {
+  group: AllocationGroup
+  suppliers: Supplier[]
+  supplierProducts: SupplierProduct[]
+  matchCandidates?: MatchCandidate[]
+  compact?: boolean
+  onSelect: (supplierId: string, mode: 'today' | 'default') => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [stage, setStage] = useState<'list' | 'scope'>('list')
+  const [pendingSupplierId, setPendingSupplierId] = useState<string | null>(null)
+
+  const spProductName = group.items[0]?.supplierProductName ?? group.productName
+
+  const candidateMap = useMemo(() => {
+    if (!matchCandidates) return null
+    const map = new Map<string, MatchCandidate>()
+    for (const mc of matchCandidates) {
+      if (!map.has(mc.supplier.id)) {
+        map.set(mc.supplier.id, mc)
+      }
+    }
+    return map
+  }, [matchCandidates])
+
+  const candidates = useMemo(() => {
+    const list = suppliers
+      .filter((s) => s.isActive)
+      .map((s) => {
+        const mc = candidateMap?.get(s.id)
+        const sp = mc
+          ? mc.supplierProduct
+          : supplierProducts.find(
+              (p) => p.supplierId === s.id && p.productName === spProductName
+            )
+        return {
+          supplier: s,
+          sp,
+          price: sp?.price ?? null,
+          stock: sp?.stockStatus ?? ('unknown' as const),
+          matchScore: mc?.score ?? null,
+        }
+      })
+
+    const minPrice = Math.min(
+      ...list.filter((c) => c.price != null).map((c) => c.price!)
+    )
+
+    return list
+      .map((c) => ({
+        ...c,
+        isCheapest: c.price != null && c.price === minPrice,
+        isDefault: c.supplier.id === group.supplierId,
+      }))
+      .filter((c) => {
+        if (!search) return true
+        return c.supplier.name.toLowerCase().includes(search.toLowerCase())
+      })
+      .sort((a, b) => {
+        if (a.matchScore != null && b.matchScore != null) return b.matchScore - a.matchScore
+        if (a.matchScore != null) return -1
+        if (b.matchScore != null) return 1
+        return 0
+      })
+  }, [suppliers, supplierProducts, spProductName, group.supplierId, search, candidateMap])
+
+  const handleSelect = (supplierId: string) => {
+    setPendingSupplierId(supplierId)
+    setStage('scope')
+  }
+
+  const handleScope = (mode: 'today' | 'default') => {
+    if (pendingSupplierId) {
+      onSelect(pendingSupplierId, mode)
+    }
+    setOpen(false)
+    setStage('list')
+    setPendingSupplierId(null)
+  }
+
+  const handleScopeWithMapping = async () => {
+    if (!pendingSupplierId) return
+    try {
+      await createAutoProductMapping({
+        platform: (group.platform as 'coupang' | 'toss') ?? 'coupang',
+        productName: group.productName,
+        optionName: group.optionName,
+        supplierId: pendingSupplierId,
+      })
+      toast.success('매핑이 등록되었습니다')
+    } catch {
+      toast.error('매핑 등록 실패')
+    }
+    onSelect(pendingSupplierId, 'today')
+    setOpen(false)
+    setStage('list')
+    setPendingSupplierId(null)
+  }
+
+  const stockLabel = (stock: string) => {
+    if (stock === 'available') return '재고있음'
+    if (stock === 'soldout') return '품절'
+    return '미확인'
+  }
+
+  const stockColor = (stock: string) => {
+    if (stock === 'available') return 'text-status-success'
+    if (stock === 'soldout') return 'text-status-error'
+    return 'text-t-mute'
+  }
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v)
+        if (!v) {
+          setStage('list')
+          setSearch('')
+          setPendingSupplierId(null)
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        {compact ? (
+          <button className="shrink-0 rounded border border-line px-2 py-1 text-xs text-t-secondary hover:bg-bg-subtle">
+            변경
+          </button>
+        ) : (
+          <button
+            className={cn(
+              'flex h-8 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-xs',
+              'hover:bg-bg-subtle transition-colors',
+              !group.supplierName && 'text-t-mute'
+            )}
+          >
+            <span className="truncate" title={group.supplierName ?? undefined}>
+              {group.supplierName ?? '공급처 선택'}
+            </span>
+            {group.supplierPrice != null && (
+              <span className="ml-1.5 shrink-0 font-mono text-t-mute">
+                ₩{group.supplierPrice.toLocaleString('ko-KR')}
+              </span>
+            )}
+            <ChevronDown size={14} className="ml-1 shrink-0 text-t-mute" />
+          </button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[400px] p-0">
+        {stage === 'list' ? (
+          <div>
+            <div className="border-b border-line p-2">
+              <Input
+                placeholder="공급처 검색..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div className="max-h-[260px] overflow-y-auto p-1">
+              {candidates.length === 0 ? (
+                <p className="py-4 text-center text-xs text-t-mute">
+                  검색 결과 없음
+                </p>
+              ) : (
+                candidates.map((c) => (
+                  <button
+                    key={c.supplier.id}
+                    className={cn(
+                      'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs transition-colors hover:bg-bg-subtle',
+                      c.isDefault && 'bg-primary/5'
+                    )}
+                    onClick={() => handleSelect(c.supplier.id)}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-t-strong">
+                          {c.supplier.name}
+                        </span>
+                        {c.isDefault && (
+                          <span className="rounded bg-primary/10 px-1 py-px text-[10px] font-medium text-primary">
+                            현재
+                          </span>
+                        )}
+                        {c.isCheapest && (
+                          <span className="rounded bg-success-light px-1 py-px text-[10px] font-medium text-status-success">
+                            최저가
+                          </span>
+                        )}
+                        {c.matchScore != null && (
+                          <span className="rounded bg-warning-light px-1 py-px text-[10px] font-medium text-warning-dark">
+                            {(c.matchScore * 100).toFixed(0)}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-right">
+                      {c.price != null ? (
+                        <span className="font-mono text-t-secondary">
+                          ₩{c.price.toLocaleString('ko-KR')}
+                        </span>
+                      ) : (
+                        <span className="text-t-mute">가격없음</span>
+                      )}
+                      <span className={cn('text-[11px]', stockColor(c.stock))}>
+                        {stockLabel(c.stock)}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="p-4">
+            <p className="text-sm font-medium text-t-strong">적용 범위</p>
+            <p className="mt-1 text-xs text-t-mute">
+              <strong>
+                {suppliers.find((s) => s.id === pendingSupplierId)?.name}
+              </strong>
+              으로 변경합니다
+            </p>
+            <div className="mt-3 flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="justify-start text-xs"
+                onClick={() => handleScope('today')}
+              >
+                오늘만 적용
+              </Button>
+              {group.status === 'unmapped' ? (
+                <Button
+                  size="sm"
+                  className="justify-start text-xs"
+                  onClick={() => void handleScopeWithMapping()}
+                >
+                  매핑 등록 + 적용
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="justify-start text-xs"
+                  onClick={() => handleScope('default')}
+                >
+                  기본 매핑도 변경
+                </Button>
+              )}
+            </div>
+            <button
+              className="mt-2 text-xs text-t-mute hover:text-t-secondary"
+              onClick={() => {
+                setStage('list')
+                setPendingSupplierId(null)
+              }}
+            >
+              ← 공급처 다시 선택
+            </button>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 function GroupRow({
   group,
   expanded,
   onToggle,
   suppliers,
   supplierProducts,
+  fruitDictionary,
+  suggestedMap,
   onSupplierChange,
+  onChangeSupplierProduct,
   onDistribute,
+  onApplySuggested,
   isReadonly,
 }: {
   group: AllocationGroup
@@ -599,12 +968,36 @@ function GroupRow({
   onToggle: () => void
   suppliers: Supplier[]
   supplierProducts: SupplierProduct[]
-  onSupplierChange: (supplierId: string) => void
+  fruitDictionary: import('@/types').FruitDictionary[]
+  suggestedMap: Map<string, SuggestedAllocation>
+  onSupplierChange: (supplierId: string, mode: 'today' | 'default') => void
+  onChangeSupplierProduct: (
+    orderIds: string[],
+    supplierProductName: string,
+    supplierProductCode?: string,
+    supplierPrice?: number
+  ) => Promise<void>
   onDistribute: () => void
+  onApplySuggested: (orderIds: string[]) => Promise<void>
   isReadonly: boolean
 }) {
+  const isSuggested = group.status === 'suggested'
+  const topCandidate = group.topCandidate
+
+  const matchCandidates = useMemo(() => {
+    if (!isSuggested) return undefined
+    const firstSugOrderId = group.orderIds.find((oid) => suggestedMap.has(oid))
+    if (!firstSugOrderId) return undefined
+    return suggestedMap.get(firstSugOrderId)!.candidates
+  }, [isSuggested, group.orderIds, suggestedMap])
+
   return (
-    <div className="rounded-radius-md border border-line bg-card">
+    <div
+      className={cn(
+        'rounded-radius-md border bg-card',
+        isSuggested ? 'border-warning/40' : 'border-line'
+      )}
+    >
       <div
         className="flex cursor-pointer items-center gap-3 px-4 py-3"
         onClick={onToggle}
@@ -627,6 +1020,28 @@ function GroupRow({
               </span>
             )}
           </div>
+          {group.supplierProductName && group.supplierProductName !== group.productName && (
+            <div
+              className="mt-0.5 flex items-center gap-1 text-xs"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <span className="text-t-faint">발주:</span>
+              <SupplierProductPickerPopover
+                group={group}
+                supplierProducts={supplierProducts}
+                fruitDictionary={fruitDictionary}
+                onSelect={(sp) => {
+                  void onChangeSupplierProduct(
+                    group.orderIds,
+                    sp.productName,
+                    sp.productCode || undefined,
+                    sp.price ?? undefined
+                  )
+                }}
+                isReadonly={isReadonly}
+              />
+            </div>
+          )}
           <div className="mt-0.5 flex items-center gap-3 text-xs text-t-mute">
             <span>{group.orderCount}건</span>
             <span>총 {group.totalQuantity}개</span>
@@ -636,52 +1051,87 @@ function GroupRow({
               </span>
             )}
             {group.smartAllocationApplied && (
-              <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                스마트배정
-              </span>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-default rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      스마트배정
+                    </span>
+                  </TooltipTrigger>
+                  {group.allocationReason && (
+                    <TooltipContent side="top">
+                      <p className="text-xs">{group.allocationReason}</p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {isSuggested && topCandidate && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-default rounded bg-warning-light px-1.5 py-0.5 text-[10px] font-medium text-warning-dark">
+                      추천: {topCandidate.supplier.name}
+                      {topCandidate.supplierProduct.price != null && (
+                        <> ₩{topCandidate.supplierProduct.price.toLocaleString('ko-KR')}</>
+                      )}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <div className="text-xs">
+                      <p>매칭 점수: {(topCandidate.score * 100).toFixed(0)}%</p>
+                      {topCandidate.matchedAttributes.length > 0 && (
+                        <p>일치: {topCandidate.matchedAttributes.join(', ')}</p>
+                      )}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
           <StatusBadge status={group.status} />
-          <div className="w-[180px]">
-            {isReadonly ? (
+          {isReadonly ? (
+            <div className="w-[280px]">
               <span className="text-sm text-t-secondary">
                 {group.supplierName ?? '미배정'}
               </span>
-            ) : (
-              <Select
-                value={group.supplierId ?? ''}
-                onValueChange={(val) => onSupplierChange(val)}
+            </div>
+          ) : isSuggested ? (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="h-7 shrink-0 bg-warning text-xs text-white hover:bg-warning/80"
+                onClick={() => {
+                  const sugOrderIds = group.orderIds.filter((oid) => suggestedMap.has(oid))
+                  if (sugOrderIds.length > 0) {
+                    void onApplySuggested(sugOrderIds)
+                  }
+                }}
               >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="공급처 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => {
-                    const sp = supplierProducts.find(
-                      (p) =>
-                        p.supplierId === s.id &&
-                        p.productName === (group.items[0]?.supplierProductName ?? group.productName)
-                    )
-                    const info = sp
-                      ? `₩${sp.price?.toLocaleString('ko-KR') ?? '?'} · ${sp.stockStatus === 'available' ? '재고있음' : sp.stockStatus === 'soldout' ? '품절' : '재고미확인'}`
-                      : null
-                    return (
-                      <SelectItem key={s.id} value={s.id}>
-                        <span>{s.name}</span>
-                        {!s.isActive && ' (비활성)'}
-                        {info && (
-                          <span className="ml-1.5 text-t-mute">· {info}</span>
-                        )}
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
+                {topCandidate?.supplier.name ?? '추천'} 적용
+              </Button>
+              <SupplierPickerPopover
+                compact
+                group={group}
+                suppliers={suppliers}
+                supplierProducts={supplierProducts}
+                matchCandidates={matchCandidates}
+                onSelect={onSupplierChange}
+              />
+            </div>
+          ) : (
+            <div className="w-[280px]">
+              <SupplierPickerPopover
+                group={group}
+                suppliers={suppliers}
+                supplierProducts={supplierProducts}
+                onSelect={onSupplierChange}
+              />
+            </div>
+          )}
           {!isReadonly && group.items.length > 1 && (
             <Button
               variant="outline"
@@ -695,101 +1145,386 @@ function GroupRow({
         </div>
       </div>
 
-      {expanded && group.items.length > 0 && (
+      {expanded && (
         <div className="border-t border-line px-4 py-2">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="text-left text-t-mute">
-                <th className="py-1.5 pr-3">플랫폼</th>
-                <th className="py-1.5 pr-3">주문번호</th>
-                <th className="py-1.5 pr-3">수취인</th>
-                <th className="py-1.5 pr-3">수량</th>
-                <th className="py-1.5">주소</th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.items.map((item) => (
-                <tr key={item.id} className="border-t border-line/50">
-                  <td className="py-1.5 pr-3">
-                    <PlatformBadge platform={item.order.platform} />
-                  </td>
-                  <td className="py-1.5 pr-3 font-mono text-t-secondary">
-                    {item.order.matchingKey}
-                  </td>
-                  <td className="py-1.5 pr-3">{item.order.recipientName}</td>
-                  <td className="py-1.5 pr-3">{item.order.quantity}</td>
-                  <td className="max-w-[300px] truncate py-1.5 text-t-mute">
-                    {item.order.address}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {isSuggested && topCandidate && (
+            <SuggestedCandidateCards
+              group={group}
+              suggestedMap={suggestedMap}
+            />
+          )}
+          {group.items.length > 0 && (
+            <>
+              <CandidateCards
+                group={group}
+                suppliers={suppliers}
+                supplierProducts={supplierProducts}
+              />
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-t-mute">
+                    <th className="py-1.5 pr-3">플랫폼</th>
+                    <th className="py-1.5 pr-3">주문번호</th>
+                    <th className="py-1.5 pr-3">수취인</th>
+                    <th className="py-1.5 pr-3">수량</th>
+                    <th className="py-1.5">주소</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.items.map((item) => (
+                    <tr key={item.id} className="border-t border-line/50">
+                      <td className="py-1.5 pr-3">
+                        <PlatformBadge platform={item.order.platform} />
+                      </td>
+                      <td className="py-1.5 pr-3 font-mono text-t-secondary">
+                        {item.order.matchingKey}
+                      </td>
+                      <td className="py-1.5 pr-3">{item.order.recipientName}</td>
+                      <td className="py-1.5 pr-3">{item.order.quantity}</td>
+                      <td className="max-w-[300px] truncate py-1.5 text-t-mute" title={item.order.address}>
+                        {item.order.address}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
       )}
     </div>
   )
 }
 
-function StatusBadge({ status }: { status: 'auto' | 'edited' | 'unmapped' }) {
+function CandidateCards({
+  group,
+  suppliers,
+  supplierProducts,
+}: {
+  group: AllocationGroup
+  suppliers: Supplier[]
+  supplierProducts: SupplierProduct[]
+}) {
+  const spProductName = group.items[0]?.supplierProductName ?? group.productName
+
+  const candidates = useMemo(() => {
+    const list = suppliers
+      .filter((s) => s.isActive)
+      .map((s) => {
+        const sp = supplierProducts.find(
+          (p) => p.supplierId === s.id && p.productName === spProductName
+        )
+        return { supplier: s, sp }
+      })
+      .filter((c) => c.sp != null)
+
+    if (list.length === 0) return []
+
+    const minPrice = Math.min(
+      ...list.filter((c) => c.sp!.price != null).map((c) => c.sp!.price!)
+    )
+
+    return list.map((c) => ({
+      ...c,
+      isCheapest: c.sp!.price != null && c.sp!.price === minPrice,
+      isSelected: c.supplier.id === group.supplierId,
+    }))
+  }, [suppliers, supplierProducts, spProductName, group.supplierId])
+
+  if (candidates.length === 0) return null
+
+  return (
+    <div className="mb-2">
+      <p className="mb-1.5 text-[11px] font-medium text-t-mute">
+        공급처 비교
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {candidates.map((c) => (
+          <div
+            key={c.supplier.id}
+            className={cn(
+              'rounded-md border px-3 py-2 text-xs',
+              c.isSelected
+                ? 'border-primary bg-primary/5'
+                : 'border-line bg-card'
+            )}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="font-medium text-t-strong">
+                {c.supplier.name}
+              </span>
+              {c.isSelected && (
+                <span className="text-[10px] text-primary">선택됨</span>
+              )}
+              {c.isCheapest && (
+                <span className="text-[10px] text-status-success">최저가</span>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-t-mute">
+              {c.sp?.price != null ? (
+                <span className="font-mono">
+                  ₩{c.sp.price.toLocaleString('ko-KR')}
+                </span>
+              ) : (
+                <span>가격없음</span>
+              )}
+              <span
+                className={cn(
+                  c.sp?.stockStatus === 'available' && 'text-status-success',
+                  c.sp?.stockStatus === 'soldout' && 'text-status-error'
+                )}
+              >
+                {c.sp?.stockStatus === 'available'
+                  ? '재고있음'
+                  : c.sp?.stockStatus === 'soldout'
+                    ? '품절'
+                    : '미확인'}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SuggestedCandidateCards({
+  group,
+  suggestedMap,
+}: {
+  group: AllocationGroup
+  suggestedMap: Map<string, SuggestedAllocation>
+}) {
+  const candidates = useMemo(() => {
+    const firstSugOrderId = group.orderIds.find((oid) => suggestedMap.has(oid))
+    if (!firstSugOrderId) return []
+    const sug = suggestedMap.get(firstSugOrderId)!
+    return sug.candidates.slice(0, 5)
+  }, [group.orderIds, suggestedMap])
+
+  if (candidates.length === 0) return null
+
+  return (
+    <div className="mb-2">
+      <p className="mb-1.5 text-[11px] font-medium text-t-mute">
+        추천 후보 비교 (속성 매칭)
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {candidates.map((c, idx) => (
+          <div
+            key={c.supplier.id}
+            className={cn(
+              'rounded-md border px-3 py-2 text-xs',
+              idx === 0
+                ? 'border-warning/40 bg-warning-light'
+                : 'border-line bg-card'
+            )}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="font-medium text-t-strong">
+                {c.supplier.name}
+              </span>
+              {idx === 0 && (
+                <span className="text-[10px] text-warning-dark">1순위</span>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-t-mute">
+              <span className="font-mono">
+                점수: {(c.score * 100).toFixed(0)}%
+              </span>
+              {c.supplierProduct.price != null && (
+                <span className="font-mono">
+                  ₩{c.supplierProduct.price.toLocaleString('ko-KR')}
+                </span>
+              )}
+            </div>
+            {c.matchedAttributes.length > 0 && (
+              <div className="mt-0.5 text-[10px] text-t-faint">
+                {c.matchedAttributes.join(' / ')}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SupplierProductPickerPopover({
+  group,
+  supplierProducts,
+  fruitDictionary,
+  onSelect,
+  isReadonly,
+}: {
+  group: AllocationGroup
+  supplierProducts: SupplierProduct[]
+  fruitDictionary: import('@/types').FruitDictionary[]
+  onSelect: (sp: SupplierProduct) => void
+  isReadonly: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const forSupplier = useMemo(() => {
+    if (!group.supplierId) return []
+    return supplierProducts.filter((sp) => sp.supplierId === group.supplierId)
+  }, [supplierProducts, group.supplierId])
+
+  const scored = useMemo(() => {
+    const attrs = fruitDictionary.length > 0
+      ? extractAttributes(group.productName, group.optionName, fruitDictionary)
+      : null
+
+    return forSupplier.map((sp) => {
+      let score = 0
+      if (attrs && attrs.fruit && fruitDictionary.length > 0) {
+        const spAttrs = extractAttributes(sp.productName, '', fruitDictionary)
+        if (spAttrs.fruit === attrs.fruit) {
+          score = 0.4
+          if (attrs.weight && spAttrs.weight && attrs.weight === spAttrs.weight) score += 0.25
+          if (attrs.grade && spAttrs.grade && attrs.grade === spAttrs.grade) score += 0.2
+          if (attrs.size && spAttrs.size && attrs.size === spAttrs.size) score += 0.15
+        }
+      }
+      return { sp, score, isSelected: sp.productName === group.supplierProductName }
+    })
+  }, [forSupplier, fruitDictionary, group.productName, group.optionName, group.supplierProductName])
+
+  const filtered = useMemo(() => {
+    let list = scored
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter((item) => item.sp.productName.toLowerCase().includes(q))
+    }
+    return list.sort((a, b) => {
+      if (a.isSelected !== b.isSelected) return a.isSelected ? -1 : 1
+      return b.score - a.score
+    })
+  }, [scored, search])
+
+  const relatedCount = scored.filter((s) => s.score > 0).length
+
+  return (
+    <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setSearch('') }}>
+      <PopoverTrigger asChild>
+        <button
+          className="max-w-[400px] truncate text-left text-xs text-primary hover:underline"
+          disabled={isReadonly}
+          title={group.supplierProductName}
+        >
+          {group.supplierProductName}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[440px] p-0">
+        <div className="border-b border-line px-3 py-2">
+          <p className="text-xs font-medium text-t-strong">발주 상품 변경</p>
+          <p className="mt-0.5 text-[11px] text-t-mute">
+            {relatedCount > 0 ? `관련 상품 ${relatedCount}개` : '전체'} · {group.supplierName}
+          </p>
+        </div>
+        <div className="border-b border-line p-2">
+          <Input
+            placeholder="상품명 검색..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 text-xs"
+          />
+        </div>
+        <div className="max-h-[320px] overflow-y-auto p-1">
+          {filtered.length === 0 ? (
+            <p className="py-4 text-center text-xs text-t-mute">검색 결과 없음</p>
+          ) : (
+            filtered.map((item) => (
+              <button
+                key={item.sp.id}
+                className={cn(
+                  'flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs transition-colors hover:bg-bg-subtle',
+                  item.isSelected && 'bg-primary/5'
+                )}
+                onClick={() => {
+                  onSelect(item.sp)
+                  setOpen(false)
+                }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className={cn('font-medium', item.score > 0 ? 'text-t-strong' : 'text-t-secondary')}>
+                      {item.sp.productName}
+                    </span>
+                    {item.isSelected && (
+                      <span className="shrink-0 rounded bg-primary/10 px-1 py-px text-[10px] font-medium text-primary">
+                        현재
+                      </span>
+                    )}
+                    {item.score >= 0.6 && !item.isSelected && (
+                      <span className="shrink-0 rounded bg-success-light px-1 py-px text-[10px] font-medium text-status-success">
+                        추천
+                      </span>
+                    )}
+                  </div>
+                  {item.sp.productCode && (
+                    <span className="mt-0.5 block text-[10px] text-t-faint">
+                      {item.sp.productCode}
+                    </span>
+                  )}
+                </div>
+                <div className="flex shrink-0 items-center gap-2 text-right">
+                  {item.sp.price != null ? (
+                    <span className="font-mono text-t-secondary">
+                      ₩{item.sp.price.toLocaleString('ko-KR')}
+                    </span>
+                  ) : (
+                    <span className="text-t-mute">가격없음</span>
+                  )}
+                  <span className={cn(
+                    'text-[11px]',
+                    item.sp.stockStatus === 'available' && 'text-status-success',
+                    item.sp.stockStatus === 'soldout' && 'text-status-error',
+                    !item.sp.stockStatus && 'text-t-mute'
+                  )}>
+                    {item.sp.stockStatus === 'available' ? '재고' : item.sp.stockStatus === 'soldout' ? '품절' : ''}
+                  </span>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+function StatusBadge({ status }: { status: 'auto' | 'edited' | 'unmapped' | 'suggested' }) {
   if (status === 'auto') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-status-success">
-        <span className="h-1.5 w-1.5 rounded-full bg-status-success" />
+      <span className="inline-flex items-center gap-1 rounded-full bg-success-light px-2 py-0.5 text-xs font-medium text-success-dark">
+        <span className="h-1.5 w-1.5 rounded-full bg-success" />
         자동배정
+      </span>
+    )
+  }
+  if (status === 'suggested') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-warning-light px-2 py-0.5 text-xs font-medium text-warning-dark">
+        <span className="h-1.5 w-1.5 rounded-full bg-warning" />
+        추천
       </span>
     )
   }
   if (status === 'edited') {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-primary">
+      <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary">
         <span className="h-1.5 w-1.5 rounded-full bg-primary" />
         수정됨
       </span>
     )
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-status-error">
+    <span className="inline-flex items-center gap-1 rounded-full bg-error-light px-2 py-0.5 text-xs font-medium text-error-dark">
       <AlertCircle size={11} />
       미분류
     </span>
-  )
-}
-
-function ChangeSupplierDialog({
-  supplierName,
-  onTodayOnly,
-  onChangeDefault,
-  onCancel,
-}: {
-  supplierName: string
-  onTodayOnly: () => void
-  onChangeDefault: () => void
-  onCancel: () => void
-}) {
-  return (
-    <Dialog open onOpenChange={onCancel}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>공급처 변경</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-t-secondary">
-          <strong>{supplierName}</strong>으로 변경합니다.
-          적용 범위를 선택해주세요.
-        </p>
-        <DialogFooter className="flex gap-2">
-          <Button variant="outline" onClick={onCancel}>
-            취소
-          </Button>
-          <Button variant="outline" onClick={onTodayOnly}>
-            오늘만 적용
-          </Button>
-          <Button onClick={onChangeDefault}>
-            기본 매핑도 변경
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }
 

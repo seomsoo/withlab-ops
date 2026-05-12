@@ -201,3 +201,75 @@ export async function getTrackingStats(
 
   return stats
 }
+
+export type SupplierTrackingProgress = {
+  supplierId: string
+  supplierName: string
+  totalAllocations: number
+  uploadedCount: number
+  matchedCount: number
+}
+
+export async function getSupplierTrackingProgress(
+  workSessionId: string
+): Promise<SupplierTrackingProgress[]> {
+  const [allocRes, trackRes, supplierRes] = await Promise.all([
+    supabase
+      .from('allocations')
+      .select('id, supplier_id')
+      .eq('work_session_id', workSessionId),
+    supabase
+      .from('trackings')
+      .select('source_supplier_id, status')
+      .eq('work_session_id', workSessionId),
+    supabase
+      .from('suppliers')
+      .select('id, name')
+      .eq('is_active', true),
+  ])
+
+  const supplierNames = new Map(
+    (supplierRes.data ?? []).map((s: { id: string; name: string }) => [s.id, s.name])
+  )
+
+  const allocBySup = new Map<string, number>()
+  for (const a of allocRes.data ?? []) {
+    const sid = a.supplier_id as string
+    allocBySup.set(sid, (allocBySup.get(sid) ?? 0) + 1)
+  }
+
+  const uploadBySup = new Map<string, number>()
+  const matchBySup = new Map<string, number>()
+  for (const t of trackRes.data ?? []) {
+    const sid = t.source_supplier_id as string
+    uploadBySup.set(sid, (uploadBySup.get(sid) ?? 0) + 1)
+    if (t.status === 'matched') {
+      matchBySup.set(sid, (matchBySup.get(sid) ?? 0) + 1)
+    }
+  }
+
+  const allIds = new Set([...allocBySup.keys(), ...uploadBySup.keys()])
+  return [...allIds]
+    .map((sid) => ({
+      supplierId: sid,
+      supplierName: supplierNames.get(sid) ?? sid,
+      totalAllocations: allocBySup.get(sid) ?? 0,
+      uploadedCount: uploadBySup.get(sid) ?? 0,
+      matchedCount: matchBySup.get(sid) ?? 0,
+    }))
+    .sort((a, b) => b.totalAllocations - a.totalAllocations)
+}
+
+export async function bulkIgnoreTrackings(
+  trackingIds: string[],
+  reason: string
+): Promise<void> {
+  if (trackingIds.length === 0) return
+
+  const { error } = await supabase
+    .from('trackings')
+    .update({ ignored: true, ignored_reason: reason })
+    .in('id', trackingIds)
+
+  if (error) throw new Error(`운송장 건너뛰기 실패: ${error.message}`)
+}

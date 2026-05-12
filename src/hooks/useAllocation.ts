@@ -5,6 +5,7 @@ import {
   createAllocations,
   getAllocations,
   updateGroupSupplier,
+  updateGroupSupplierProduct,
   replaceAllocationsForGroup,
   getUnallocatedOrders,
 } from '@/lib/supabase/allocations'
@@ -13,17 +14,58 @@ import { getNameMappings } from '@/lib/supabase/nameMappings'
 import { getAllSuppliers } from '@/lib/supabase/suppliers'
 import { getAllSupplierProducts } from '@/lib/supabase/supplierProducts'
 import { autoAllocate, findNameMapping } from '@/lib/allocation/autoAllocator'
+import { extractAttributes } from '@/lib/matching/attributeExtractor'
 import { getOrders } from '@/lib/supabase/orders'
+import { getFruitDictionaries } from '@/lib/supabase/fruitDictionary'
 
 import type { AllocationWithOrder } from '@/lib/supabase/allocations'
-import type { PendingAllocation } from '@/lib/allocation/autoAllocator'
-import type { StandardOrder, Platform } from '@/types'
+import type { PendingAllocation, SuggestedAllocation } from '@/lib/allocation/autoAllocator'
+import type { StandardOrder, Platform, SupplierProduct } from '@/types'
 
 export function useAllocation(workSessionId: string) {
   const [allocations, setAllocations] = useState<AllocationWithOrder[]>([])
   const [unallocatedOrders, setUnallocatedOrders] = useState<StandardOrder[]>([])
+  const [suggested, setSuggested] = useState<SuggestedAllocation[]>([])
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
+
+  const resolveSupplierProductName = useCallback(
+    async (
+      _platform: Platform,
+      productName: string,
+      optionName: string,
+      supplierId: string
+    ): Promise<SupplierProduct | null> => {
+      try {
+        const [spAll, dictAll] = await Promise.all([
+          getAllSupplierProducts(),
+          getFruitDictionaries(),
+        ])
+        if (dictAll.length === 0) return null
+        const attrs = extractAttributes(productName, optionName, dictAll)
+        if (!attrs.fruit) return null
+        const forSupplier = spAll.filter((sp) => sp.supplierId === supplierId)
+        let bestSp: SupplierProduct | null = null
+        let bestScore = 0
+        for (const sp of forSupplier) {
+          const spAttrs = extractAttributes(sp.productName, '', dictAll)
+          if (!spAttrs.fruit || spAttrs.fruit !== attrs.fruit) continue
+          let score = 0.4
+          if (attrs.weight && spAttrs.weight && attrs.weight === spAttrs.weight) score += 0.25
+          if (attrs.grade && spAttrs.grade && attrs.grade === spAttrs.grade) score += 0.2
+          if (attrs.size && spAttrs.size && attrs.size === spAttrs.size) score += 0.15
+          if (score > bestScore) {
+            bestScore = score
+            bestSp = sp
+          }
+        }
+        return bestSp
+      } catch {
+        return null
+      }
+    },
+    []
+  )
 
   const fetchAllocations = useCallback(async () => {
     if (!workSessionId) return
@@ -54,6 +96,27 @@ export function useAllocation(workSessionId: string) {
         const unalloc = await getUnallocatedOrders(workSessionId)
         if (!alive) return
         setUnallocatedOrders(unalloc)
+
+        if (unalloc.length > 0 && data.length > 0) {
+          const [productMappingsRaw, nameMappingsRaw, suppliers, supplierProducts, fruitDictionary] =
+            await Promise.all([
+              getProductMappings(),
+              getNameMappings(),
+              getAllSuppliers(),
+              getAllSupplierProducts(),
+              getFruitDictionaries(),
+            ])
+          if (!alive) return
+          const result = autoAllocate({
+            orders: unalloc,
+            productMappings: productMappingsRaw,
+            nameMappings: nameMappingsRaw,
+            suppliers,
+            supplierProducts,
+            fruitDictionary,
+          })
+          setSuggested(result.suggested)
+        }
       } catch (err) {
         if (!alive) return
         toast.error(
@@ -70,13 +133,14 @@ export function useAllocation(workSessionId: string) {
     if (!workSessionId) return
     try {
       setRunning(true)
-      const [orders, productMappingsRaw, nameMappingsRaw, suppliers, supplierProducts] =
+      const [orders, productMappingsRaw, nameMappingsRaw, suppliers, supplierProducts, fruitDictionary] =
         await Promise.all([
           getOrders(workSessionId),
           getProductMappings(),
           getNameMappings(),
           getAllSuppliers(),
           getAllSupplierProducts(),
+          getFruitDictionaries(),
         ])
 
       if (orders.length === 0) {
@@ -90,6 +154,7 @@ export function useAllocation(workSessionId: string) {
         nameMappings: nameMappingsRaw,
         suppliers,
         supplierProducts,
+        fruitDictionary,
       })
 
       if (result.allocated.length > 0) {
@@ -97,12 +162,14 @@ export function useAllocation(workSessionId: string) {
       }
 
       await fetchAllocations()
+      setSuggested(result.suggested)
 
       const unmatchedCount = result.unmatched.length
+      const suggestedCount = result.suggested.length
       if (unmatchedCount > 0) {
-        toast.warning(
-          `자동 배정 완료 (미분류 ${unmatchedCount}건)`
-        )
+        const parts = [`미분류 ${unmatchedCount - suggestedCount}건`]
+        if (suggestedCount > 0) parts.push(`추천 ${suggestedCount}건`)
+        toast.warning(`자동 배정 완료 (${parts.join(', ')})`)
       } else {
         toast.success('자동 배정 완료')
       }
@@ -135,12 +202,24 @@ export function useAllocation(workSessionId: string) {
           nameMappingsAll
         )
 
+        let resolvedProductName = nameResult.supplierProductName
+        let resolvedProductCode = nameResult.supplierProductCode
+        if (!nameResult.applied) {
+          const resolved = await resolveSupplierProductName(
+            platform, productName, optionName, newSupplierId
+          )
+          if (resolved) {
+            resolvedProductName = resolved.productName
+            resolvedProductCode = resolved.productCode || undefined
+          }
+        }
+
         await updateGroupSupplier({
           workSessionId,
           orderIds,
           newSupplierId,
-          supplierProductName: nameResult.supplierProductName,
-          supplierProductCode: nameResult.supplierProductCode,
+          supplierProductName: resolvedProductName,
+          supplierProductCode: resolvedProductCode,
           isTemporaryOverride,
           nameMappingApplied: nameResult.applied,
         })
@@ -163,49 +242,68 @@ export function useAllocation(workSessionId: string) {
         throw err
       }
     },
-    [workSessionId, fetchAllocations]
+    [workSessionId, fetchAllocations, resolveSupplierProductName]
   )
 
   const assignUnmatched = useCallback(
-    async (orderId: string, supplierId: string) => {
+    async (orderIds: string[], supplierId: string) => {
       try {
-        const order = unallocatedOrders.find((o) => o.id === orderId)
-        if (!order) throw new Error('주문을 찾을 수 없습니다')
-
         const nameMappingsAll = await getNameMappings()
-        const nameResult = findNameMapping(
-          order.platform,
-          order.productName,
-          order.optionName,
-          supplierId,
-          nameMappingsAll
-        )
+        const pendingAllocations: PendingAllocation[] = []
 
-        const pending: PendingAllocation = {
-          orderId,
-          supplierId,
-          supplierProductName: nameResult.supplierProductName,
-          supplierProductCode: nameResult.supplierProductCode,
-          allocatedQuantity: order.quantity,
-          isTemporaryOverride: false,
-          nameMappingApplied: nameResult.applied,
-          smartAllocationApplied: false,
-        }
-        await createAllocations(workSessionId, [pending])
+        for (const orderId of orderIds) {
+          const order = unallocatedOrders.find((o) => o.id === orderId)
+          if (!order) continue
 
-        try {
-          await createAutoProductMapping({
-            platform: order.platform,
-            productName: order.productName,
-            optionName: order.optionName,
+          const nameResult = findNameMapping(
+            order.platform,
+            order.productName,
+            order.optionName,
             supplierId,
+            nameMappingsAll
+          )
+
+          let resolvedProductName = nameResult.supplierProductName
+          let resolvedProductCode = nameResult.supplierProductCode
+          if (!nameResult.applied) {
+            const resolved = await resolveSupplierProductName(
+              order.platform, order.productName, order.optionName, supplierId
+            )
+            if (resolved) {
+              resolvedProductName = resolved.productName
+              resolvedProductCode = resolved.productCode || undefined
+            }
+          }
+
+          pendingAllocations.push({
+            orderId,
+            supplierId,
+            supplierProductName: resolvedProductName,
+            supplierProductCode: resolvedProductCode,
+            allocatedQuantity: order.quantity,
+            isTemporaryOverride: false,
+            nameMappingApplied: nameResult.applied,
+            smartAllocationApplied: false,
           })
-        } catch {
-          // unique constraint → mapping already exists
+
+          try {
+            await createAutoProductMapping({
+              platform: order.platform,
+              productName: order.productName,
+              optionName: order.optionName,
+              supplierId,
+            })
+          } catch {
+            // unique constraint → mapping already exists
+          }
+        }
+
+        if (pendingAllocations.length > 0) {
+          await createAllocations(workSessionId, pendingAllocations)
         }
 
         await fetchAllocations()
-        toast.success('배정 완료')
+        toast.success(`${pendingAllocations.length}건 배정 완료`)
       } catch (err) {
         toast.error(
           err instanceof Error ? err.message : '배정 실패'
@@ -213,7 +311,47 @@ export function useAllocation(workSessionId: string) {
         throw err
       }
     },
-    [workSessionId, unallocatedOrders, fetchAllocations]
+    [workSessionId, unallocatedOrders, fetchAllocations, resolveSupplierProductName]
+  )
+
+  const applySuggested = useCallback(
+    async (orderIds: string[]) => {
+      try {
+        const pendingAllocations: PendingAllocation[] = []
+        for (const orderId of orderIds) {
+          const sug = suggested.find((s) => s.orderId === orderId)
+          if (!sug || sug.candidates.length === 0) continue
+          const best = sug.candidates[0]!
+          const order = unallocatedOrders.find((o) => o.id === orderId)
+          if (!order) continue
+
+          pendingAllocations.push({
+            orderId,
+            supplierId: best.supplier.id,
+            supplierProductName: best.supplierProduct.productName,
+            supplierProductCode: best.supplierProduct.productCode || undefined,
+            allocatedQuantity: order.quantity,
+            isTemporaryOverride: false,
+            nameMappingApplied: false,
+            smartAllocationApplied: true,
+            supplierPrice: best.supplierProduct.price ?? undefined,
+            allocationReason: `추천 적용 (score: ${best.score.toFixed(2)})`,
+          })
+        }
+
+        if (pendingAllocations.length > 0) {
+          await createAllocations(workSessionId, pendingAllocations)
+        }
+
+        setSuggested((prev) => prev.filter((s) => !orderIds.includes(s.orderId)))
+        await fetchAllocations()
+        toast.success(`추천 ${pendingAllocations.length}건 적용 완료`)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '추천 적용 실패')
+        throw err
+      }
+    },
+    [workSessionId, suggested, unallocatedOrders, fetchAllocations]
   )
 
   const distributeGroup = useCallback(
@@ -231,12 +369,22 @@ export function useAllocation(workSessionId: string) {
         const nameMappingsAll = await getNameMappings()
 
         const nameCache = new Map<string, ReturnType<typeof findNameMapping>>()
+        const resolvedCache = new Map<string, { productName: string; productCode: string | undefined }>()
         for (const dist of distributions) {
           if (!nameCache.has(dist.supplierId)) {
-            nameCache.set(
-              dist.supplierId,
-              findNameMapping(platform, productName, optionName, dist.supplierId, nameMappingsAll)
-            )
+            const nr = findNameMapping(platform, productName, optionName, dist.supplierId, nameMappingsAll)
+            nameCache.set(dist.supplierId, nr)
+            if (!nr.applied) {
+              const resolved = await resolveSupplierProductName(
+                platform, productName, optionName, dist.supplierId
+              )
+              if (resolved) {
+                resolvedCache.set(dist.supplierId, {
+                  productName: resolved.productName,
+                  productCode: resolved.productCode || undefined,
+                })
+              }
+            }
           }
         }
 
@@ -244,6 +392,7 @@ export function useAllocation(workSessionId: string) {
         const newAllocations: PendingAllocation[] = []
         for (const dist of distributions) {
           const nameResult = nameCache.get(dist.supplierId)!
+          const resolved = resolvedCache.get(dist.supplierId)
           for (let i = 0; i < dist.count; i++) {
             const oid = orderedIds[idx]
             if (!oid) break
@@ -251,8 +400,8 @@ export function useAllocation(workSessionId: string) {
             newAllocations.push({
               orderId: oid,
               supplierId: dist.supplierId,
-              supplierProductName: nameResult.supplierProductName,
-              supplierProductCode: nameResult.supplierProductCode,
+              supplierProductName: resolved?.productName ?? nameResult.supplierProductName,
+              supplierProductCode: resolved?.productCode ?? nameResult.supplierProductCode,
               allocatedQuantity: existingAlloc?.order.quantity ?? 1,
               isTemporaryOverride: false,
               nameMappingApplied: nameResult.applied,
@@ -272,18 +421,48 @@ export function useAllocation(workSessionId: string) {
         throw err
       }
     },
-    [workSessionId, allocations, fetchAllocations]
+    [workSessionId, allocations, fetchAllocations, resolveSupplierProductName]
+  )
+
+  const changeSupplierProduct = useCallback(
+    async (
+      orderIds: string[],
+      supplierProductName: string,
+      supplierProductCode?: string,
+      supplierPrice?: number
+    ) => {
+      try {
+        await updateGroupSupplierProduct({
+          workSessionId,
+          orderIds,
+          supplierProductName,
+          supplierProductCode,
+          supplierPrice,
+        })
+        await fetchAllocations()
+        toast.success('발주 상품이 변경되었습니다')
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : '상품 변경 실패'
+        )
+        throw err
+      }
+    },
+    [workSessionId, fetchAllocations]
   )
 
   return {
     allocations,
     unallocatedOrders,
+    suggested,
     loading,
     running,
     runAutoAllocation,
     updateGroupSupplier: handleUpdateGroupSupplier,
     assignUnmatched,
+    applySuggested,
     distributeGroup,
+    changeSupplierProduct,
     refetch: fetchAllocations,
   }
 }

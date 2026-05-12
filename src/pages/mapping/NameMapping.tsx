@@ -402,8 +402,8 @@ export default function NameMapping() {
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-radius-lg border border-line bg-card shadow-sm">
-              <Table>
+            <div className="overflow-x-auto rounded-radius-lg border border-line bg-card shadow-sm">
+              <Table className="min-w-[700px]">
                 <TableHeader>
                   <TableRow className="bg-gray-50 hover:bg-gray-50">
                     <TableHead className="w-[70px] text-xs font-semibold tracking-wider text-t-mute">
@@ -599,7 +599,7 @@ export default function NameMapping() {
                           setAcOpen(false)
                         }}
                       >
-                        <span className="flex-1 truncate font-medium">
+                        <span className="flex-1 truncate font-medium" title={p.productName}>
                           {p.productName}
                         </span>
                         {p.productCode && (
@@ -706,11 +706,11 @@ export default function NameMapping() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 text-sm">
                           <PlatformBadge platform={s.platform} />
-                          <span className="font-medium truncate">
+                          <span className="font-medium truncate" title={s.platformProductName}>
                             {s.platformProductName}
                           </span>
                           {s.platformOptionName && (
-                            <span className="text-t-mute truncate">
+                            <span className="text-t-mute truncate" title={s.platformOptionName}>
                               {s.platformOptionName}
                             </span>
                           )}

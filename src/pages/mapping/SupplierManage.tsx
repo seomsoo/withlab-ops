@@ -31,6 +31,9 @@ import { useSuppliers } from '@/hooks/useSuppliers'
 import { useSupplierTemplates } from '@/hooks/useSupplierTemplate'
 import { supplierFormSchema } from '@/lib/schemas'
 import { getSupplierProductCounts } from '@/lib/supabase/supplierProducts'
+import { getSupplierEnrichments } from '@/lib/supabase/mappingStats'
+
+import type { SupplierEnrichment } from '@/lib/supabase/mappingStats'
 import {
   getSupplierProductTemplate,
 } from '@/lib/supabase/supplierProductTemplates'
@@ -65,14 +68,21 @@ export default function SupplierManage() {
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [productCounts, setProductCounts] = useState<Map<string, number>>(new Map())
+  const [enrichments, setEnrichments] = useState<Map<string, SupplierEnrichment>>(new Map())
   const [uploadingFor, setUploadingFor] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
     void (async () => {
       try {
-        const counts = await getSupplierProductCounts()
-        if (alive) setProductCounts(counts)
+        const [counts, enrich] = await Promise.all([
+          getSupplierProductCounts(),
+          getSupplierEnrichments(),
+        ])
+        if (alive) {
+          setProductCounts(counts)
+          setEnrichments(enrich)
+        }
       } catch {
         // non-critical
       }
@@ -276,8 +286,8 @@ export default function SupplierManage() {
               }
             />
           ) : (
-            <div className="overflow-hidden rounded-radius-lg border border-line bg-card shadow-sm">
-              <Table>
+            <div className="overflow-x-auto rounded-radius-lg border border-line bg-card shadow-sm">
+              <Table className="min-w-[800px]">
                 <TableHeader>
                   <TableRow className="bg-gray-50 hover:bg-gray-50">
                     <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
@@ -294,6 +304,12 @@ export default function SupplierManage() {
                     </TableHead>
                     <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
                       상품
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
+                      매핑 수
+                    </TableHead>
+                    <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
+                      평균 단가
                     </TableHead>
                     <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
                       등록일
@@ -334,6 +350,16 @@ export default function SupplierManage() {
                       <TableCell className="text-[13px] text-t-mid">
                         {productCounts.has(s.id)
                           ? `${productCounts.get(s.id)!.toLocaleString()}개`
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="text-[13px] text-t-mid">
+                        {enrichments.get(s.id)?.mappingCount
+                          ? `${enrichments.get(s.id)!.mappingCount}건`
+                          : '—'}
+                      </TableCell>
+                      <TableCell className="font-mono text-[13px] text-t-mid">
+                        {enrichments.get(s.id)?.avgPrice != null
+                          ? `₩${enrichments.get(s.id)!.avgPrice!.toLocaleString()}`
                           : '—'}
                       </TableCell>
                       <TableCell className="font-mono text-[13px] text-t-mute">

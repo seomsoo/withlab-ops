@@ -7,7 +7,6 @@ import type { StandardOrder, InvalidRow, DuplicateRow, ParseResult } from '@/typ
 
 const SHEET_NAME = '주문내역'
 const COLUMN_COUNT = 30
-const DATA_START_INDEX = 3
 
 const COL = {
   orderDate: 0,
@@ -46,6 +45,18 @@ function buildRaw(row: unknown[]): Record<string, unknown> {
   return obj
 }
 
+function findHeaderRowIndex(rows: unknown[][]): number {
+  const markers = ['주문일시', '주문번호', '주문상품번호']
+  for (let i = 0; i < Math.min(10, rows.length); i++) {
+    const row = rows[i]
+    if (!row) continue
+    const values = row.map((v) => cellToString(v))
+    const matchCount = markers.filter((m) => values.includes(m)).length
+    if (matchCount >= 2) return i
+  }
+  return -1
+}
+
 export function parseTossOrders(workbook: WorkBook): ParseResult {
   const sheet = workbook.Sheets[SHEET_NAME]
   if (!sheet) {
@@ -53,7 +64,12 @@ export function parseTossOrders(workbook: WorkBook): ParseResult {
   }
 
   const allRows = sheetToRows(sheet)
-  const dataRows = allRows.slice(DATA_START_INDEX)
+  const headerIdx = findHeaderRowIndex(allRows)
+  if (headerIdx === -1) {
+    throw new Error('토스 헤더 행을 찾을 수 없습니다')
+  }
+  const dataStartIndex = headerIdx + 2
+  const dataRows = allRows.slice(dataStartIndex)
 
   const orders: StandardOrder[] = []
   const invalidRows: InvalidRow[] = []
@@ -61,7 +77,7 @@ export function parseTossOrders(workbook: WorkBook): ParseResult {
 
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i]!
-    const excelRowNumber = i + DATA_START_INDEX + 1
+    const excelRowNumber = i + dataStartIndex + 1
     const normalized = normalizeRowValues(row, COLUMN_COUNT)
 
     const matchingKey = cellToString(row[COL.orderItemNo])
@@ -143,6 +159,7 @@ export function parseTossOrders(workbook: WorkBook): ParseResult {
       orderDate: cellToString(row[COL.orderDate]),
       productName,
       optionName: cellToString(row[COL.optionName]),
+      displayProductName: [productName, cellToString(row[COL.optionName])].filter(Boolean).join(' '),
       quantity,
       buyerName: cellToString(row[COL.buyerName]),
       buyerPhone,

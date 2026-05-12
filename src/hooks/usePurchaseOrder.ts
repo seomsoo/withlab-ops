@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import {
   getAllocations,
   completeOrder,
+  revertOrder,
+  deleteSupplierAllocations,
   getUnallocatedOrders,
 } from '@/lib/supabase/allocations'
 import {
@@ -167,10 +169,39 @@ export function usePurchaseOrder(workSessionId: string) {
     }
   }, [workSessionId])
 
+  const handleRevertOrder = useCallback(async () => {
+    try {
+      await revertOrder(workSessionId)
+      toast.success('발주가 되돌려졌습니다')
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : '발주 되돌리기 실패'
+      )
+      throw err
+    }
+  }, [workSessionId])
+
+  const handleDeleteSupplierAllocations = useCallback(
+    async (supplierId: string, supplierName: string) => {
+      try {
+        await deleteSupplierAllocations(workSessionId, supplierId)
+        toast.success(`${supplierName} 배정이 삭제되었습니다`)
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : '배정 삭제 실패'
+        )
+        throw err
+      }
+    },
+    [workSessionId]
+  )
+
   return {
     downloadOne,
     downloadAll,
     getValidationResult,
     completeOrder: handleCompleteOrder,
+    revertOrder: handleRevertOrder,
+    deleteSupplierAllocations: handleDeleteSupplierAllocations,
   }
 }

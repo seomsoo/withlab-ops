@@ -87,6 +87,7 @@ create table orders (
 
   product_name text not null,
   option_name text not null default '',
+  display_product_name text,       -- 발주서 출력용: 쿠팡=노출상품명(옵션명) / 토스=상품명+옵션명
   quantity integer not null check (quantity > 0),
 
   buyer_name text,
@@ -539,3 +540,12 @@ using (bucket_id = 'templates');
 | `stock_status in (...)` | supplier_products | 재고 상태 제약 |
 | `on delete cascade` | order_imports → orders | 재업로드 시 연쇄 삭제 |
 | `on delete set null` | trackings.allocation_id | allocation 삭제 시 미매칭 전환 |
+
+## RPC 함수 목록
+
+| 함수명 | 설명 |
+|--------|------|
+| `complete_order_session(p_work_session_id)` | 발주 완료: `active` → `ordered`, allocations `pending` → `ordered` |
+| `revert_order_session(p_work_session_id)` | 발주 되돌리기: `ordered` → `active`, allocations `ordered` → `pending` |
+| `replace_supplier_products(p_supplier_id, p_products)` | 공급처 상품 전체 교체 (atomic DELETE + INSERT) |
+| `get_supplier_product_counts()` | 공급처별 상품 수 GROUP BY 조회 |

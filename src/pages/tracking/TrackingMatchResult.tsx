@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { PageSkeleton } from '@/components/ui/PageSkeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +26,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -36,7 +44,11 @@ import {
 import { useWorkSession } from '@/hooks/useWorkSession'
 import { useTrackingMatch } from '@/hooks/useTrackingMatch'
 import { getAllocations } from '@/lib/supabase/allocations'
-import { getTrackingImports } from '@/lib/supabase/trackings'
+import {
+  getTrackingImports,
+  bulkIgnoreTrackings,
+  getSupplierTrackingProgress,
+} from '@/lib/supabase/trackings'
 import { getCourierMappings } from '@/lib/supabase/courierMappings'
 import { convertCourierName } from '@/lib/matching/courierConverter'
 
@@ -44,6 +56,7 @@ import { cn } from '@/lib/utils'
 
 import type { TrackingStatus, CourierMapping } from '@/types'
 import type { AllocationWithOrder } from '@/lib/supabase/allocations'
+import type { SupplierTrackingProgress } from '@/lib/supabase/trackings'
 
 type FilterTab = TrackingStatus | 'all'
 
@@ -69,6 +82,7 @@ export default function TrackingMatchResult() {
     manualMatch,
     overwriteMatch,
     checkExistingMatch,
+    refetch,
   } = useTrackingMatch(sessionId!)
 
   const [manualMatchTarget, setManualMatchTarget] = useState<string | null>(null)
@@ -82,13 +96,61 @@ export default function TrackingMatchResult() {
 
   const [hasImports, setHasImports] = useState(false)
   const [courierMappings, setCourierMappings] = useState<CourierMapping[]>([])
+  const [bulkProcessing, setBulkProcessing] = useState(false)
+  const [supplierProgress, setSupplierProgress] = useState<SupplierTrackingProgress[]>([])
+  const [supplierFilter, setSupplierFilter] = useState('all')
 
   useEffect(() => {
     void getTrackingImports(sessionId!).then((imports) => {
       setHasImports(imports.length > 0)
     })
     void getCourierMappings().then(setCourierMappings)
+    void getSupplierTrackingProgress(sessionId!).then(setSupplierProgress)
   }, [sessionId])
+
+  const handleBulkIgnoreInvalid = async () => {
+    const invalidIds = trackings
+      .filter((t) => t.status === 'invalid' && !t.ignored)
+      .map((t) => t.id)
+    if (invalidIds.length === 0) return
+    try {
+      setBulkProcessing(true)
+      await bulkIgnoreTrackings(invalidIds, '무효 건 일괄 건너뛰기')
+      await refetch()
+      toast.success(`무효 ${invalidIds.length}건을 건너뛰었습니다`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '처리 실패')
+    } finally {
+      setBulkProcessing(false)
+    }
+  }
+
+  const handleBulkIgnoreDuplicated = async () => {
+    const duplicatedIds = trackings
+      .filter((t) => t.status === 'duplicated' && !t.ignored)
+      .map((t) => t.id)
+    if (duplicatedIds.length === 0) return
+    try {
+      setBulkProcessing(true)
+      await bulkIgnoreTrackings(duplicatedIds, '중복 건 일괄 건너뛰기')
+      await refetch()
+      toast.success(`중복 ${duplicatedIds.length}건을 건너뛰었습니다`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '처리 실패')
+    } finally {
+      setBulkProcessing(false)
+    }
+  }
+
+  const displayedTrackings = useMemo(() => {
+    if (supplierFilter === 'all') return filteredTrackings
+    return filteredTrackings.filter((t) => t.sourceSupplierId === supplierFilter)
+  }, [filteredTrackings, supplierFilter])
+
+  const uniqueSupplierIds = useMemo(() => {
+    const ids = new Set(trackings.map((t) => t.sourceSupplierId))
+    return [...ids]
+  }, [trackings])
 
   const unmappedCourierCount = useMemo(() => {
     if (courierMappings.length === 0) return 0
@@ -167,9 +229,7 @@ export default function TrackingMatchResult() {
     return (
       <>
         <PageHeader title="매칭 결과" />
-        <div className="flex justify-center py-20">
-          <LoadingSpinner />
-        </div>
+        <PageSkeleton />
       </>
     )
   }
@@ -208,6 +268,25 @@ export default function TrackingMatchResult() {
           </div>
         )}
 
+        {supplierProgress.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {supplierProgress.map((sp) => (
+              <div
+                key={sp.supplierId}
+                className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-xs"
+              >
+                <span className={sp.uploadedCount > 0 ? 'text-green-600' : 'text-t-mute'}>
+                  {sp.uploadedCount > 0 ? '✓' : '○'}
+                </span>
+                <span className="font-medium text-t-strong">{sp.supplierName}</span>
+                <span className="text-t-mute">
+                  {sp.matchedCount}/{sp.totalAllocations}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* 요약 카드 */}
         <div className="grid grid-cols-4 gap-3">
           <StatCard tone="primary" label="매칭됨" value={stats.matched} hint={stats.total > 0 ? `전체의 ${Math.round((stats.matched / stats.total) * 100)}%` : ''} icon={<Check size={16} />} />
@@ -216,37 +295,81 @@ export default function TrackingMatchResult() {
           <StatCard tone="error" label="오류" value={stats.invalid} hint="형식/누락" icon={<X size={16} />} />
         </div>
 
-        {/* 필터 바 */}
-        <div className="flex items-center gap-2">
-          {FILTER_TABS.map((tab) => {
-            const count =
-              tab.id === 'all' ? stats.total : stats[tab.id as TrackingStatus]
-            return (
-              <button
-                key={tab.id}
-                className={cn(
-                  'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
-                  filter === tab.id
-                    ? 'bg-primary text-white'
-                    : 'bg-bg-subtle text-t-secondary hover:bg-gray-200'
-                )}
-                onClick={() => setFilter(tab.id as FilterTab)}
-              >
-                {tab.label}
-                <span className={cn(
-                  'text-xs',
-                  filter === tab.id ? 'text-white/80' : 'text-t-mute'
-                )}>
-                  {count}
-                </span>
-              </button>
-            )
-          })}
+        {/* 필터 바 + 벌크 액션 */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {FILTER_TABS.map((tab) => {
+              const count =
+                tab.id === 'all' ? stats.total : stats[tab.id as TrackingStatus]
+              return (
+                <button
+                  key={tab.id}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors',
+                    filter === tab.id
+                      ? 'bg-primary text-white'
+                      : 'bg-bg-subtle text-t-secondary hover:bg-gray-200'
+                  )}
+                  onClick={() => setFilter(tab.id as FilterTab)}
+                >
+                  {tab.label}
+                  <span className={cn(
+                    'text-xs',
+                    filter === tab.id ? 'text-white/80' : 'text-t-mute'
+                  )}>
+                    {count}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex items-center gap-2">
+            {uniqueSupplierIds.length > 1 && (
+              <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                <SelectTrigger className="h-8 w-[160px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 공급처</SelectItem>
+                  {supplierProgress.map((sp) => (
+                    <SelectItem key={sp.supplierId} value={sp.supplierId}>
+                      {sp.supplierName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
+          {!isCompleted && (stats.invalid > 0 || stats.duplicated > 0) && (
+            <div className="flex items-center gap-2">
+              {stats.invalid > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={bulkProcessing}
+                  onClick={() => void handleBulkIgnoreInvalid()}
+                >
+                  무효 건 전체 건너뛰기
+                </Button>
+              )}
+              {stats.duplicated > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={bulkProcessing}
+                  onClick={() => void handleBulkIgnoreDuplicated()}
+                >
+                  중복 건 전체 건너뛰기
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 테이블 */}
-        <div className="rounded-radius-md border border-line bg-card shadow-level-1 overflow-hidden">
-          <Table>
+        <div className="rounded-radius-md border border-line bg-card shadow-level-1 overflow-x-auto">
+          <Table className="min-w-[700px]">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-20">상태</TableHead>
@@ -258,17 +381,18 @@ export default function TrackingMatchResult() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTrackings.length === 0 ? (
+              {displayedTrackings.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="py-12 text-center text-t-mute">
                     해당하는 운송장이 없습니다
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTrackings.map((t) => (
+                displayedTrackings.map((t) => (
                   <TableRow key={t.id} className={cn(
                     t.status === 'unmatched' && 'bg-amber-50/30',
-                    t.status === 'invalid' && 'bg-red-50/30'
+                    t.status === 'invalid' && 'bg-red-50/30',
+                    t.ignored && 'opacity-40'
                   )}>
                     <TableCell>
                       <StatusPill status={t.status} />
@@ -466,7 +590,7 @@ function StatusPill({ status }: { status: TrackingStatus }) {
   }
   const c = config[status]
   return (
-    <Badge className={cn('text-xs', c.className)} variant="outline">
+    <Badge className={cn('whitespace-nowrap text-xs', c.className)} variant="outline">
       {c.label}
     </Badge>
   )

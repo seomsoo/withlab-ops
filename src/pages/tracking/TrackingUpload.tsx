@@ -369,8 +369,8 @@ export default function TrackingUpload() {
 
             {/* 운송장 테이블 */}
             {displayedTrackings.length > 0 && (
-              <div className="rounded-radius-md border border-line overflow-hidden">
-                <Table>
+              <div className="rounded-radius-md border border-line overflow-x-auto">
+                <Table className="min-w-[600px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>

@@ -6,6 +6,8 @@ import type {
   CourierMapping,
   SupplierProductTemplate,
   SupplierProduct,
+  FruitDictionary,
+  SynonymGroup,
 } from '@/types'
 
 const platformSchema = z.enum(['coupang', 'toss'])
@@ -25,6 +27,7 @@ const systemFieldSchema = z.enum([
   'orderItemNo',
   'supplierProductName',
   'supplierProductCode',
+  'platformProductName',
   'quantity',
   'recipientName',
   'recipientPhone',
@@ -33,6 +36,7 @@ const systemFieldSchema = z.enum([
   'deliveryMessage',
   'buyerName',
   'buyerPhone',
+  'senderAddress',
   'empty',
 ])
 
@@ -59,6 +63,7 @@ export const standardOrderSchema = z.object({
   orderDate: z.string(),
   productName: z.string(),
   optionName: z.string(),
+  displayProductName: z.string(),
   quantity: z.number().int().min(1),
   buyerName: z.string(),
   buyerPhone: z.string(),
@@ -338,6 +343,7 @@ export type OrderRow = {
   order_date: string | null
   product_name: string
   option_name: string
+  display_product_name: string | null
   quantity: number
   buyer_name: string | null
   buyer_phone: string | null
@@ -367,6 +373,7 @@ export type AllocationRow = {
   name_mapping_applied: boolean
   smart_allocation_applied: boolean
   supplier_price: number | null
+  allocation_reason: string | null
   created_at: string
   ordered_at: string | null
 }
@@ -378,6 +385,8 @@ export type TrackingRow = {
   allocation_id: string | null
   status: string
   invalid_reason: string | null
+  ignored: boolean
+  ignored_reason: string | null
   tracking_company: string | null
   tracking_number: string | null
   source_supplier_id: string
@@ -552,6 +561,7 @@ export function toStandardOrder(row: OrderRow) {
     orderDate: row.order_date ?? '',
     productName: row.product_name,
     optionName: row.option_name,
+    displayProductName: row.display_product_name ?? '',
     quantity: row.quantity,
     buyerName: row.buyer_name ?? '',
     buyerPhone: row.buyer_phone ?? '',
@@ -582,6 +592,7 @@ export function toAllocation(row: AllocationRow) {
     nameMappingApplied: row.name_mapping_applied,
     smartAllocationApplied: row.smart_allocation_applied,
     supplierPrice: row.supplier_price ?? undefined,
+    allocationReason: row.allocation_reason ?? undefined,
     createdAt: row.created_at,
     orderedAt: row.ordered_at ?? undefined,
   }
@@ -594,6 +605,8 @@ export function toTracking(row: TrackingRow) {
     // as 사용 사유: DB text 컬럼 → 유니온 리터럴, check 제약으로 값 보장
     status: row.status as 'matched' | 'unmatched' | 'duplicated' | 'invalid',
     invalidReason: row.invalid_reason ?? undefined,
+    ignored: row.ignored,
+    ignoredReason: row.ignored_reason ?? undefined,
     trackingCompany: row.tracking_company ?? '',
     trackingNumber: row.tracking_number ?? '',
     sourceSupplierId: row.source_supplier_id,
@@ -796,3 +809,81 @@ export function toSupplierProduct(row: SupplierProductRow): SupplierProduct {
     uploadedAt: row.uploaded_at,
   }
 }
+
+// ── FruitDictionary ──
+
+export type FruitDictionaryRow = {
+  id: string
+  category: string
+  keywords: string[]
+  grade_synonyms: Record<string, string[]>
+  size_synonyms: Record<string, string[]>
+  weight_aliases: Record<string, string[]>
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+function jsonbToSynonymGroups(
+  jsonb: Record<string, string[]>
+): SynonymGroup[] {
+  return Object.entries(jsonb).map(([canonical, aliases]) => ({
+    canonical,
+    aliases,
+  }))
+}
+
+function synonymGroupsToJsonb(
+  groups: SynonymGroup[]
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {}
+  for (const g of groups) {
+    result[g.canonical] = g.aliases
+  }
+  return result
+}
+
+export function toFruitDictionary(row: FruitDictionaryRow): FruitDictionary {
+  return {
+    id: row.id,
+    category: row.category,
+    keywords: row.keywords,
+    gradeSynonyms: jsonbToSynonymGroups(row.grade_synonyms),
+    sizeSynonyms: jsonbToSynonymGroups(row.size_synonyms),
+    weightAliases: row.weight_aliases,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export function fromFruitDictionary(
+  d: Omit<FruitDictionary, 'id' | 'createdAt' | 'updatedAt'>
+) {
+  return {
+    category: d.category,
+    keywords: d.keywords,
+    grade_synonyms: synonymGroupsToJsonb(d.gradeSynonyms),
+    size_synonyms: synonymGroupsToJsonb(d.sizeSynonyms),
+    weight_aliases: d.weightAliases,
+    is_active: d.isActive,
+  }
+}
+
+export const fruitDictionaryFormSchema = z.object({
+  category: z.string().min(1, { message: '카테고리를 입력해주세요' }),
+  keywords: z.array(z.string()).min(1, { message: '키워드를 1개 이상 입력해주세요' }),
+  gradeSynonyms: z.array(
+    z.object({
+      canonical: z.string().min(1),
+      aliases: z.array(z.string()),
+    })
+  ),
+  sizeSynonyms: z.array(
+    z.object({
+      canonical: z.string().min(1),
+      aliases: z.array(z.string()),
+    })
+  ),
+  weightAliases: z.record(z.string(), z.array(z.string())),
+})

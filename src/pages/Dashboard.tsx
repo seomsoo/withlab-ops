@@ -247,6 +247,7 @@ function Shortcuts({
 }) {
   const items = [
     {
+      id: 'product-mappings',
       href: '/mapping/products',
       icon: ArrowLeftRight,
       title: '매핑 관리',
@@ -256,6 +257,7 @@ function Shortcuts({
         unmatchedTrackingCount > 0 ? `미매칭 ${unmatchedTrackingCount}` : null,
     },
     {
+      id: 'supplier-templates',
       href: '/mapping/suppliers',
       icon: FileSpreadsheet,
       title: '양식 관리',
@@ -264,6 +266,7 @@ function Shortcuts({
       warn: null,
     },
     {
+      id: 'suppliers',
       href: '/mapping/suppliers',
       icon: Building2,
       title: '공급처 관리',
@@ -283,7 +286,7 @@ function Shortcuts({
           const Icon = item.icon
           return (
             <Link
-              key={item.href}
+              key={item.id}
               to={item.href}
               className="flex items-center gap-4 rounded-[14px] border border-line bg-card px-5 py-[18px] no-underline transition-all hover:border-primary-100 hover:bg-primary-50"
             >

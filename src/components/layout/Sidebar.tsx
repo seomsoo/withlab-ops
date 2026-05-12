@@ -3,10 +3,7 @@ import {
   LayoutDashboard,
   FileText,
   Truck,
-  Building2,
   ArrowLeftRight,
-  Replace,
-  Package,
   FileUp,
   LogOut,
 } from 'lucide-react'
@@ -44,10 +41,7 @@ const NAV_SECTIONS: (NavItem | NavSection)[] = [
   {
     title: '설정',
     items: [
-      { label: '공급처 관리', href: '/mapping/suppliers', icon: Building2 },
-      { label: '품목 매핑', href: '/mapping/products', icon: ArrowLeftRight },
-      { label: '상품명 변환', href: '/mapping/names', icon: Replace },
-      { label: '택배사 매핑', href: '/mapping/couriers', icon: Package },
+      { label: '매핑관리', href: '/mapping', icon: ArrowLeftRight },
       {
         label: '운송장 양식',
         href: '/settings/platform-template',
@@ -100,8 +94,8 @@ export function Sidebar() {
 
   return (
     <aside className="sticky top-0 flex h-screen w-60 flex-col border-r border-line bg-card">
-      <div className="border-b border-line px-4 py-5">
-        <Logo size="sm" showText showSub subText="과일 발주 시스템" />
+      <div className="flex h-16 items-center border-b border-line px-3">
+        <Logo size="sm" showText showSub subText="과일 발주 시스템" showIcon={false} />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-3.5">

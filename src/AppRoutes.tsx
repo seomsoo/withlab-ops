@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { ProtectedRoute } from '@/components/layout/ProtectedRoute'
 import { PublicRoute } from '@/components/layout/PublicRoute'
 import { AppLayout } from '@/components/layout/AppLayout'
+import { MappingLayout } from '@/components/layout/MappingLayout'
 
 import Login from '@/pages/Login'
 import Dashboard from '@/pages/Dashboard'
@@ -19,6 +20,7 @@ import SupplierDetail from '@/pages/mapping/SupplierDetail'
 import ProductMapping from '@/pages/mapping/ProductMapping'
 import NameMapping from '@/pages/mapping/NameMapping'
 import CourierMapping from '@/pages/mapping/CourierMapping'
+import FruitDictionary from '@/pages/mapping/FruitDictionary'
 import PlatformTemplate from '@/pages/settings/PlatformTemplate'
 
 export function AppRoutes() {
@@ -55,15 +57,15 @@ export function AppRoutes() {
             element={<TrackingDownload />}
           />
 
-          <Route
-            path="/mapping"
-            element={<Navigate to="/mapping/suppliers" replace />}
-          />
-          <Route path="/mapping/suppliers" element={<SupplierManage />} />
-          <Route path="/mapping/suppliers/:id" element={<SupplierDetail />} />
-          <Route path="/mapping/products" element={<ProductMapping />} />
-          <Route path="/mapping/names" element={<NameMapping />} />
-          <Route path="/mapping/couriers" element={<CourierMapping />} />
+          <Route path="/mapping" element={<MappingLayout />}>
+            <Route index element={<Navigate to="suppliers" replace />} />
+            <Route path="suppliers" element={<SupplierManage />} />
+            <Route path="suppliers/:id" element={<SupplierDetail />} />
+            <Route path="products" element={<ProductMapping />} />
+            <Route path="names" element={<NameMapping />} />
+            <Route path="couriers" element={<CourierMapping />} />
+            <Route path="dictionary" element={<FruitDictionary />} />
+          </Route>
 
           <Route
             path="/settings"

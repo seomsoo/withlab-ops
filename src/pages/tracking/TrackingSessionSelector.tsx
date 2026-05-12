@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Truck, ChevronRight } from 'lucide-react'
 
@@ -7,8 +8,59 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 import { useWorkSessions } from '@/hooks/useWorkSessions'
+import { supabase } from '@/lib/supabase/client'
 
 import type { WorkSessionStatus } from '@/types'
+
+type SessionInfo = {
+  orderCount: number
+  supplierCount: number
+  matchedCount: number
+  totalTrackings: number
+}
+
+async function fetchSessionInfos(
+  sessionIds: string[]
+): Promise<Map<string, SessionInfo>> {
+  if (sessionIds.length === 0) return new Map()
+
+  const [orders, allocs, trackings] = await Promise.all([
+    supabase.from('orders').select('work_session_id').in('work_session_id', sessionIds),
+    supabase.from('allocations').select('work_session_id, supplier_id').in('work_session_id', sessionIds),
+    supabase.from('trackings').select('work_session_id, status').in('work_session_id', sessionIds),
+  ])
+
+  const map = new Map<string, SessionInfo>()
+  for (const id of sessionIds) {
+    map.set(id, { orderCount: 0, supplierCount: 0, matchedCount: 0, totalTrackings: 0 })
+  }
+
+  for (const o of orders.data ?? []) {
+    const info = map.get(o.work_session_id as string)
+    if (info) info.orderCount++
+  }
+
+  const supplierSets = new Map<string, Set<string>>()
+  for (const a of allocs.data ?? []) {
+    const sid = a.work_session_id as string
+    if (!supplierSets.has(sid)) supplierSets.set(sid, new Set())
+    supplierSets.get(sid)!.add(a.supplier_id as string)
+  }
+  for (const [sid, set] of supplierSets) {
+    const info = map.get(sid)
+    if (info) info.supplierCount = set.size
+  }
+
+  for (const t of trackings.data ?? []) {
+    const info = map.get(t.work_session_id as string)
+    if (info) {
+      info.totalTrackings++
+      if (t.status === 'matched') info.matchedCount++
+    }
+  }
+
+  return map
+}
 
 const STATUS_CONFIG: Record<
   WorkSessionStatus,
@@ -22,6 +74,17 @@ const STATUS_CONFIG: Record<
 export default function TrackingSessionSelector() {
   const navigate = useNavigate()
   const { sessions, loading } = useWorkSessions()
+  const [infos, setInfos] = useState<Map<string, SessionInfo>>(new Map())
+
+  const filteredSessions = sessions.filter(
+    (s) => s.status === 'ordered' || s.status === 'completed' || s.status === 'active'
+  )
+
+  useEffect(() => {
+    if (filteredSessions.length > 0) {
+      void fetchSessionInfos(filteredSessions.map((s) => s.id)).then(setInfos)
+    }
+  }, [sessions.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -33,10 +96,6 @@ export default function TrackingSessionSelector() {
       </>
     )
   }
-
-  const filteredSessions = sessions.filter(
-    (s) => s.status === 'ordered' || s.status === 'completed' || s.status === 'active'
-  )
 
   return (
     <>
@@ -69,17 +128,37 @@ export default function TrackingSessionSelector() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[15px] font-bold text-t-strong truncate">
+                    <span className="text-[15px] font-bold text-t-strong truncate" title={s.name}>
                       {s.name}
                     </span>
                     <StatusBadge variant={config.variant}>
                       {config.label}
                     </StatusBadge>
                   </div>
-                  <div className="mt-1 text-xs text-t-mute">
-                    {!config.clickable && s.status === 'active'
-                      ? '발주를 먼저 완료해 주세요'
-                      : `생성: ${new Date(s.createdAt).toLocaleString('ko-KR')}`}
+                  <div className="mt-1 flex items-center gap-3 text-xs text-t-mute">
+                    {!config.clickable && s.status === 'active' ? (
+                      <span>발주를 먼저 완료해 주세요</span>
+                    ) : (
+                      <>
+                        <span>{new Date(s.createdAt).toLocaleString('ko-KR')}</span>
+                        {infos.has(s.id) && (
+                          <>
+                            <span>·</span>
+                            <span>주문 {infos.get(s.id)!.orderCount}건</span>
+                            <span>·</span>
+                            <span>공급처 {infos.get(s.id)!.supplierCount}곳</span>
+                            {infos.get(s.id)!.totalTrackings > 0 && (
+                              <>
+                                <span>·</span>
+                                <span>
+                                  운송장 {infos.get(s.id)!.matchedCount}/{infos.get(s.id)!.totalTrackings}
+                                </span>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
                 {config.clickable && (

@@ -3,7 +3,6 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   Upload,
-  FileText,
   Check,
   AlertCircle,
   Copy,
@@ -11,11 +10,13 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  Plus,
+  Replace,
 } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
+import { CardGridSkeleton } from '@/components/ui/PageSkeleton'
 import { PlatformBadge } from '@/components/PlatformBadge'
 import { Button } from '@/components/ui/button'
 import {
@@ -23,6 +24,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog'
 
 import { useWorkSession } from '@/hooks/useWorkSession'
@@ -59,10 +61,12 @@ export default function OrderUpload() {
   const isReadonly = session?.status !== 'active'
 
   const handleFileSelect = useCallback(
-    async (file: File, expectedPlatform: Platform) => {
+    async (file: File, expectedPlatform?: Platform) => {
       try {
-        setUploading(expectedPlatform)
-        const plan = await upload.prepareUpload(file, expectedPlatform)
+        setUploading(expectedPlatform ?? 'coupang')
+        const plan = expectedPlatform
+          ? await upload.prepareUpload(file, expectedPlatform)
+          : await upload.prepareUploadAutoDetect(file)
         if (plan.existingImport) {
           setPendingPlan(plan)
           setConfirmOpen(true)
@@ -80,11 +84,15 @@ export default function OrderUpload() {
     [upload]
   )
 
-  const handleConfirmReplace = useCallback(async () => {
+  const handleConfirmAction = useCallback(async (mode: 'replace' | 'append') => {
     if (!pendingPlan) return
     try {
       setUploading(pendingPlan.platform)
-      await upload.commitUpload(pendingPlan, { replaceExisting: true })
+      if (mode === 'append') {
+        await upload.commitUpload(pendingPlan, { appendExisting: true })
+      } else {
+        await upload.commitUpload(pendingPlan, { replaceExisting: true })
+      }
     } catch {
       // toast handled by hook
     } finally {
@@ -117,9 +125,7 @@ export default function OrderUpload() {
     return (
       <>
         <PageHeader title="발주서" />
-        <div className="flex justify-center py-20">
-          <LoadingSpinner />
-        </div>
+        <CardGridSkeleton count={2} />
       </>
     )
   }
@@ -207,23 +213,15 @@ export default function OrderUpload() {
         </div>
       )}
 
-      {/* Upload cards */}
-      <div className="mb-4 grid grid-cols-2 gap-4">
-        <UploadCard
-          platform="coupang"
-          label="쿠팡 주문 엑셀"
-          orderImport={upload.coupangImport}
-          uploading={uploading === 'coupang'}
+      {/* Unified Upload Zone */}
+      <div className="mb-4">
+        <UnifiedDropZone
+          coupangImport={upload.coupangImport}
+          tossImport={upload.tossImport}
+          uploading={uploading !== null}
           disabled={isReadonly}
-          onFileSelect={(file) => handleFileSelect(file, 'coupang')}
-        />
-        <UploadCard
-          platform="toss"
-          label="토스 주문 엑셀"
-          orderImport={upload.tossImport}
-          uploading={uploading === 'toss'}
-          disabled={isReadonly}
-          onFileSelect={(file) => handleFileSelect(file, 'toss')}
+          onFileSelect={(file) => handleFileSelect(file)}
+          onPlatformFileSelect={(file, platform) => handleFileSelect(file, platform)}
         />
       </div>
 
@@ -236,7 +234,9 @@ export default function OrderUpload() {
                 파싱 결과
               </div>
               <div className="text-lg font-bold tracking-tight mt-0.5">
-                총 {upload.summary.total}건이 인식되었어요
+                {upload.parseResult.coupang && upload.parseResult.toss
+                  ? `쿠팡 ${upload.parseResult.coupang.meta.validRows}건 + 토스 ${upload.parseResult.toss.meta.validRows}건 = 총 ${upload.summary.total}건 · ${upload.summary.productCount}개 품목`
+                  : `총 ${upload.summary.total}건 · ${upload.summary.productCount}개 품목`}
               </div>
             </div>
             {upload.summary.invalid > 0 && (
@@ -293,7 +293,7 @@ export default function OrderUpload() {
 
       {/* Orders table */}
       {hasUploads ? (
-        <div className="rounded-radius-lg border border-line bg-card shadow-level-1 overflow-hidden">
+        <div className="rounded-radius-lg border border-line bg-card shadow-level-1 overflow-x-auto">
           <div className="flex items-start justify-between px-6 py-5">
             <div>
               <div className="text-base font-bold tracking-tight">
@@ -396,21 +396,70 @@ export default function OrderUpload() {
         </div>
       </div>
 
-      {/* Replace confirm dialog */}
-      <ConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="기존 주문 데이터 교체"
-        description={
-          pendingPlan?.existingImport
-            ? `기존 ${pendingPlan.platform === 'coupang' ? '쿠팡' : '토스'} 주문 데이터 ${pendingPlan.existingImport.validCount}건이 삭제되고 새 파일로 대체됩니다. 계속하시겠습니까?`
-            : undefined
-        }
-        confirmText="교체"
-        variant="destructive"
-        loading={uploading !== null}
-        onConfirm={handleConfirmReplace}
-      />
+      {/* Replace or Append dialog */}
+      <Dialog open={confirmOpen} onOpenChange={(v) => { if (!uploading) { setConfirmOpen(v); if (!v) setPendingPlan(null) } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              이미 {pendingPlan?.platform === 'coupang' ? '쿠팡' : '토스'} 주문이 있어요
+            </DialogTitle>
+            <p className="text-sm text-t-mid mt-1">
+              기존 {pendingPlan?.existingImport?.validCount ?? 0}건 + 새 파일 {pendingPlan?.parseResult.meta.validRows ?? 0}건
+            </p>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-2">
+            <button
+              className="flex items-start gap-4 rounded-xl border-2 border-primary/30 bg-primary/[0.03] px-5 py-4 text-left transition-colors hover:border-primary hover:bg-primary/[0.06] disabled:opacity-50"
+              disabled={uploading !== null}
+              onClick={() => handleConfirmAction('append')}
+            >
+              <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10">
+                <Plus size={20} className="text-primary" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-t-strong">
+                  합치기
+                  {uploading !== null && pendingPlan && (
+                    <span className="ml-2 inline-flex items-center text-xs font-medium text-primary">
+                      처리 중...
+                    </span>
+                  )}
+                </div>
+                <div className="mt-0.5 text-xs text-t-mid leading-relaxed">
+                  기존 주문은 유지하고, 새 파일의 주문을 추가해요.
+                  <br />
+                  <span className="text-t-faint">중복 주문은 자동으로 걸러져요.</span>
+                </div>
+              </div>
+            </button>
+            <button
+              className="flex items-start gap-4 rounded-xl border-2 border-line bg-white px-5 py-4 text-left transition-colors hover:border-red-300 hover:bg-red-50/50 disabled:opacity-50"
+              disabled={uploading !== null}
+              onClick={() => handleConfirmAction('replace')}
+            >
+              <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-red-50">
+                <Replace size={20} className="text-red-500" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-t-strong">교체하기</div>
+                <div className="mt-0.5 text-xs text-t-mid leading-relaxed">
+                  기존 {pendingPlan?.existingImport?.validCount ?? 0}건을 삭제하고, 새 파일로 대체해요.
+                </div>
+              </div>
+            </button>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setConfirmOpen(false); setPendingPlan(null) }}
+              disabled={uploading !== null}
+            >
+              취소
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Error/Duplicate modal */}
       <Dialog open={errorModalOpen} onOpenChange={setErrorModalOpen}>
@@ -511,24 +560,22 @@ export default function OrderUpload() {
 
 // --- Sub-components ---
 
-type UploadCardProps = {
-  platform: Platform
-  label: string
-  orderImport: import('@/types').OrderImport | null
-  uploading: boolean
-  disabled: boolean
-  onFileSelect: (file: File) => void
-}
-
-function UploadCard({
-  platform,
-  label,
-  orderImport,
+function UnifiedDropZone({
+  coupangImport,
+  tossImport,
   uploading,
   disabled,
   onFileSelect,
-}: UploadCardProps) {
-  const inputId = `file-${platform}`
+  onPlatformFileSelect,
+}: {
+  coupangImport: import('@/types').OrderImport | null
+  tossImport: import('@/types').OrderImport | null
+  uploading: boolean
+  disabled: boolean
+  onFileSelect: (file: File) => void
+  onPlatformFileSelect: (file: File, platform: Platform) => void
+}) {
+  const inputId = 'file-unified'
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -543,37 +590,10 @@ function UploadCard({
     if (file) onFileSelect(file)
   }
 
+  const hasAny = coupangImport || tossImport
+
   return (
     <div className="rounded-radius-lg border border-line bg-card p-5 shadow-level-1">
-      <div className="flex items-center gap-3 mb-4">
-        <div
-          className={cn(
-            'grid h-9 w-9 place-items-center rounded-[10px]',
-            platform === 'coupang' ? 'bg-platform-coupang-bg' : 'bg-platform-toss-bg'
-          )}
-        >
-          <FileText
-            size={18}
-            className={
-              platform === 'coupang'
-                ? 'text-platform-coupang-text'
-                : 'text-platform-toss-text'
-            }
-          />
-        </div>
-        <div className="flex-1">
-          <div className="text-[15px] font-bold tracking-tight">{label}</div>
-          <div className="text-xs text-t-mute mt-0.5">
-            .xlsx, .xls · 최대 10MB
-          </div>
-        </div>
-        {orderImport && (
-          <span className="inline-flex items-center gap-1 rounded-[6px] bg-success-light px-2 py-1 text-[11px] font-semibold text-success-dark">
-            <Check size={12} /> 업로드 완료
-          </span>
-        )}
-      </div>
-
       {uploading ? (
         <div className="flex flex-col items-center gap-2 rounded-radius-md border border-line bg-gray-50 px-6 py-8">
           <LoadingSpinner />
@@ -581,25 +601,102 @@ function UploadCard({
             파일 분석 중…
           </div>
         </div>
-      ) : orderImport ? (
-        <div className="flex items-center gap-3 rounded-radius-md bg-gray-50 px-4 py-3.5">
-          <div className="grid h-9 w-9 place-items-center rounded-[8px] border border-line bg-card text-primary">
-            <FileText size={20} />
+      ) : (
+        <>
+          <div
+            className={cn(
+              'flex cursor-pointer flex-col items-center gap-2 rounded-radius-md border-[1.5px] border-dashed border-line-strong bg-gray-50 px-6 py-6 text-center transition-colors',
+              !disabled && 'hover:border-primary hover:bg-primary-50'
+            )}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleDrop}
+            onClick={() => {
+              if (!disabled) document.getElementById(inputId)?.click()
+            }}
+          >
+            <div className="grid h-11 w-11 place-items-center rounded-radius-md bg-primary-50 text-primary">
+              <Upload size={20} />
+            </div>
+            <div className="text-sm font-semibold text-t-strong">
+              주문 엑셀 파일을 끌어다 놓거나 클릭
+            </div>
+            <div className="text-xs text-t-mute">
+              쿠팡 / 토스 파일을 자동 감지합니다 · .xlsx, .xls · 최대 10MB
+            </div>
+            <input
+              id={inputId}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleChange}
+              className="hidden"
+              disabled={disabled}
+            />
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="truncate font-mono text-[13px] font-semibold">
+
+          {hasAny && (
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <ImportStatus
+                platform="coupang"
+                label="쿠팡"
+                orderImport={coupangImport}
+                disabled={disabled}
+                onReupload={(file) => onPlatformFileSelect(file, 'coupang')}
+              />
+              <ImportStatus
+                platform="toss"
+                label="토스"
+                orderImport={tossImport}
+                disabled={disabled}
+                onReupload={(file) => onPlatformFileSelect(file, 'toss')}
+              />
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function ImportStatus({
+  platform,
+  label,
+  orderImport,
+  disabled,
+  onReupload,
+}: {
+  platform: Platform
+  label: string
+  orderImport: import('@/types').OrderImport | null
+  disabled: boolean
+  onReupload: (file: File) => void
+}) {
+  const inputId = `file-re-${platform}`
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) onReupload(file)
+    e.target.value = ''
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-radius-md bg-gray-50 px-3 py-2.5">
+      <PlatformBadge platform={platform} />
+      {orderImport ? (
+        <>
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-mono text-xs font-semibold" title={orderImport.fileName}>
               {orderImport.fileName}
             </div>
-            <div className="text-xs text-t-mute mt-0.5">
-              {orderImport.validCount}건 인식
+            <div className="text-[11px] text-t-mute">
+              {orderImport.validCount}건
             </div>
           </div>
           {!disabled && (
             <label
               htmlFor={inputId}
-              className="flex cursor-pointer items-center gap-1 text-[13px] font-semibold text-primary hover:text-primary-hover"
+              className="flex shrink-0 cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
             >
-              <RefreshCw size={14} /> 다시 업로드
+              <RefreshCw size={12} /> 교체
               <input
                 id={inputId}
                 type="file"
@@ -609,41 +706,9 @@ function UploadCard({
               />
             </label>
           )}
-        </div>
+        </>
       ) : (
-        <div
-          className={cn(
-            'flex cursor-pointer flex-col items-center gap-2 rounded-radius-md border-[1.5px] border-dashed border-line-strong bg-gray-50 px-6 py-8 text-center transition-colors',
-            !disabled && 'hover:border-primary hover:bg-primary-50'
-          )}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={handleDrop}
-          onClick={() => {
-            if (!disabled) {
-              document.getElementById(inputId)?.click()
-            }
-          }}
-        >
-          <div className="grid h-11 w-11 place-items-center rounded-radius-md bg-primary-50 text-primary">
-            <Upload size={20} />
-          </div>
-          <div className="text-sm font-semibold text-t-strong">
-            엑셀 파일을 끌어다 놓거나 클릭해서 업로드
-          </div>
-          <div className="text-xs text-t-mute">
-            {platform === 'coupang'
-              ? '쿠팡 WING > 주문관리 > 엑셀 다운로드'
-              : '토스 셀러 > 주문 > 엑셀 일괄 다운로드'}
-          </div>
-          <input
-            id={inputId}
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleChange}
-            className="hidden"
-            disabled={disabled}
-          />
-        </div>
+        <span className="text-xs text-t-mute">{label} 미업로드</span>
       )}
     </div>
   )
@@ -706,11 +771,11 @@ function SummaryCell({
 
 function OrdersTable({ orders }: { orders: StandardOrder[] }) {
   return (
-    <table className="w-full text-[13px]">
+    <table className="min-w-[800px] w-full text-[13px]">
       <thead>
         <tr className="border-t border-line bg-gray-50 text-left text-xs font-semibold tracking-wide text-t-mute">
           <th className="px-6 py-3">플랫폼</th>
-          <th className="px-4 py-3">주문번호</th>
+          <th className="whitespace-nowrap px-4 py-3">주문번호</th>
           <th className="px-4 py-3">상품명</th>
           <th className="px-4 py-3">옵션</th>
           <th className="px-4 py-3 text-center">수량</th>
@@ -725,10 +790,10 @@ function OrdersTable({ orders }: { orders: StandardOrder[] }) {
               <PlatformBadge platform={o.platform} />
             </td>
             <td className="px-4 py-3 font-mono text-xs">{o.matchingKey}</td>
-            <td className="max-w-[200px] truncate px-4 py-3 font-semibold">
+            <td className="max-w-[200px] truncate px-4 py-3 font-semibold" title={o.productName}>
               {o.productName}
             </td>
-            <td className="max-w-[150px] truncate px-4 py-3 text-t-mute">
+            <td className="max-w-[150px] truncate px-4 py-3 text-t-mute" title={o.optionName}>
               {o.optionName}
             </td>
             <td className="px-4 py-3 text-center">

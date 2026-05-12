@@ -11,6 +11,7 @@ export type AllocationWithOrder = Allocation & {
     | 'platform'
     | 'productName'
     | 'optionName'
+    | 'displayProductName'
     | 'quantity'
     | 'matchingKey'
     | 'orderNo'
@@ -46,6 +47,7 @@ export async function createAllocations(
     name_mapping_applied: a.nameMappingApplied,
     smart_allocation_applied: a.smartAllocationApplied,
     supplier_price: a.supplierPrice ?? null,
+    allocation_reason: a.allocationReason ?? null,
   }))
 
   const { data, error } = await supabase
@@ -65,7 +67,8 @@ export async function getAllocations(
     .select(`
       *,
       orders!inner (
-        platform, product_name, option_name, quantity, matching_key,
+        platform, product_name, option_name, display_product_name,
+        quantity, matching_key,
         order_no, order_item_no, recipient_name, recipient_phone,
         address, zip_code, delivery_message, buyer_name, buyer_phone,
         raw_values, raw_row_number
@@ -87,6 +90,7 @@ export async function getAllocations(
         platform: orderRow.platform as Platform,
         productName: orderRow.product_name as string,
         optionName: orderRow.option_name as string,
+        displayProductName: (orderRow.display_product_name as string) ?? '',
         quantity: orderRow.quantity as number,
         matchingKey: orderRow.matching_key as string,
         orderNo: orderRow.order_no as string,
@@ -150,11 +154,51 @@ export async function replaceAllocationsForGroup(
   return createAllocations(workSessionId, newAllocations)
 }
 
+export async function updateGroupSupplierProduct(input: {
+  workSessionId: string
+  orderIds: string[]
+  supplierProductName: string
+  supplierProductCode?: string
+  supplierPrice?: number
+}): Promise<void> {
+  const { error } = await supabase
+    .from('allocations')
+    .update({
+      supplier_product_name: input.supplierProductName,
+      supplier_product_code: input.supplierProductCode ?? null,
+      supplier_price: input.supplierPrice ?? null,
+    })
+    .eq('work_session_id', input.workSessionId)
+    .in('order_id', input.orderIds)
+
+  if (error) throw new Error(`상품 변경 실패: ${error.message}`)
+}
+
 export async function completeOrder(workSessionId: string): Promise<void> {
   const { error } = await supabase.rpc('complete_order_session', {
     p_work_session_id: workSessionId,
   })
   if (error) throw new Error(`발주 완료 처리 실패: ${error.message}`)
+}
+
+export async function revertOrder(workSessionId: string): Promise<void> {
+  const { error } = await supabase.rpc('revert_order_session', {
+    p_work_session_id: workSessionId,
+  })
+  if (error) throw new Error(`발주 되돌리기 실패: ${error.message}`)
+}
+
+export async function deleteSupplierAllocations(
+  workSessionId: string,
+  supplierId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('allocations')
+    .delete()
+    .eq('work_session_id', workSessionId)
+    .eq('supplier_id', supplierId)
+
+  if (error) throw new Error(`배정 삭제 실패: ${error.message}`)
 }
 
 export async function getUnallocatedOrders(
