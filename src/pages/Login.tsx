@@ -66,7 +66,7 @@ export default function Login() {
         >
           {/* Brand */}
           <div className="mb-7">
-            <Logo size="md" showText showSub />
+            <Logo size="md" showText showSub showIcon={false} />
           </div>
 
           {/* Form */}

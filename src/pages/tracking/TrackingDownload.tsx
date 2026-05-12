@@ -8,6 +8,8 @@ import {
   ExternalLink,
   FileSpreadsheet,
 } from 'lucide-react'
+
+import { PlatformLogo } from '@/components/PlatformLogo'
 import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -442,14 +444,7 @@ function PlatformCard({
       )}
     >
       <div className="mb-4 flex items-center gap-3">
-        <div
-          className={cn(
-            'grid h-10 w-10 place-items-center rounded-radius-md text-white',
-            platform === 'coupang' ? 'bg-blue-600' : 'bg-indigo-600'
-          )}
-        >
-          <FileSpreadsheet size={20} />
-        </div>
+        <PlatformLogo platform={platform} size={40} />
         <div>
           <div className="text-[15px] font-bold text-t-strong">
             {label} 운송장 파일

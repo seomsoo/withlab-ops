@@ -46,7 +46,7 @@ export function Logo({
           <span
             className={cn(
               'font-extrabold tracking-tight text-t-strong',
-              size === 'md' ? 'text-xl' : 'text-base'
+              size === 'md' ? 'text-xl' : 'text-xl'
             )}
           >
             WithLab
