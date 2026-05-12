@@ -168,7 +168,7 @@ export default function OrderDownload() {
       />
 
       {isOrdered && (
-        <div className="mt-4 flex items-center justify-between rounded-radius-md border border-status-success/20 bg-green-50 px-4 py-3">
+        <div className="mt-4 flex items-center justify-between rounded-radius-md border border-status-success/20 bg-green-50 dark:bg-green-950/30 px-4 py-3">
           <div className="flex items-center gap-2 text-sm font-medium text-status-success">
             <CheckCircle2 size={16} />
             발주가 완료되었습니다. 발주서를 재다운로드할 수 있습니다.

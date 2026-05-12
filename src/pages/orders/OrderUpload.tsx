@@ -433,11 +433,11 @@ export default function OrderUpload() {
               </div>
             </button>
             <button
-              className="flex items-start gap-4 rounded-xl border-2 border-line bg-white px-5 py-4 text-left transition-colors hover:border-red-300 hover:bg-red-50/50 disabled:opacity-50"
+              className="flex items-start gap-4 rounded-xl border-2 border-line bg-card px-5 py-4 text-left transition-colors hover:border-red-300 hover:bg-red-50/50 dark:hover:bg-red-950/30 disabled:opacity-50"
               disabled={uploading !== null}
               onClick={() => handleConfirmAction('replace')}
             >
-              <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-red-50">
+              <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-red-50 dark:bg-red-950/40">
                 <Replace size={20} className="text-red-500" />
               </div>
               <div>
