@@ -7,6 +7,8 @@ import {
   createSupplier,
   updateSupplier,
   deleteSupplier,
+  restoreSupplier,
+  hardDeleteSupplier,
 } from '@/lib/supabase/suppliers'
 
 import type { Supplier } from '@/types'
@@ -113,5 +115,37 @@ export function useSuppliers(includeInactive = false) {
     [refetch]
   )
 
-  return { suppliers, loading, error, refetch, create, update, remove }
+  const restore = useCallback(
+    async (id: string) => {
+      try {
+        await restoreSupplier(id)
+        toast.success('공급처를 다시 활성화했습니다')
+        await refetch()
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '오류가 발생했습니다'
+        toast.error(message)
+        throw err
+      }
+    },
+    [refetch]
+  )
+
+  const hardRemove = useCallback(
+    async (id: string) => {
+      try {
+        await hardDeleteSupplier(id)
+        toast.success('공급처를 완전삭제했습니다')
+        await refetch()
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '오류가 발생했습니다'
+        toast.error(message)
+        throw err
+      }
+    },
+    [refetch]
+  )
+
+  return { suppliers, loading, error, refetch, create, update, remove, restore, hardRemove }
 }

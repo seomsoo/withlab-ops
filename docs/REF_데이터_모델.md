@@ -191,11 +191,17 @@ type Supplier = {
   name: string
   contact?: string
   memo?: string
-  isActive: boolean            // false = 소프트 삭제
+  isActive: boolean            // false = 소프트 삭제 (비활성화)
   createdAt: string
   updatedAt: string
 }
 ```
+
+#### 공급처 삭제 정책
+- **비활성화** (`deleteSupplier`): `is_active = false`. 데이터 보존, 복원 가능 (`restoreSupplier`)
+- **완전삭제** (`hardDeleteSupplier`): DB에서 물리 삭제. 배정/운송장 데이터가 있으면 FK 제약으로 차단
+- cascade 대상: product_mappings, name_mappings, courier_mappings, supplier_templates, supplier_products
+- FK 차단 대상: allocations, trackings (과거 이력 보존)
 
 ### ProductMapping (품목→공급처)
 ```ts
@@ -432,11 +438,15 @@ type FruitDictionary = {
   sizeSynonyms: SynonymGroup[]  // 크기 동의어
   weightAliases: Record<string, string[]>  // 무게 단위 별칭 (예: { kg: ["키로", "KG"] })
   weightMapping: Record<string, string>    // 무게 변환 규칙 (예: { "4.5kg": "5kg" })
-  isActive: boolean
+  isActive: boolean            // false = 소프트 삭제 (비활성화)
   createdAt: string
   updatedAt: string
 }
 ```
+
+#### 과일사전 삭제 정책
+- **비활성화** (`softDeleteFruitDictionary`): `is_active = false`. 복원 가능 (`updateFruitDictionary`로 `isActive: true`)
+- **완전삭제** (`hardDeleteFruitDictionary`): DB에서 물리 삭제. 복구 불가
 
 ### weightMapping (무게 변환)
 - 플랫폼 주문의 무게를 공급처 상품 무게로 변환 (예: 4.5kg → 5kg)

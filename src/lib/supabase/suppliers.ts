@@ -81,3 +81,24 @@ export async function deleteSupplier(id: string): Promise<void> {
     .eq('id', id)
   if (error) throw new Error(`공급처 비활성화 실패: ${error.message}`)
 }
+
+export async function restoreSupplier(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('suppliers')
+    .update({ is_active: true })
+    .eq('id', id)
+  if (error) throw new Error(`공급처 활성화 실패: ${error.message}`)
+}
+
+export async function hardDeleteSupplier(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('suppliers')
+    .delete()
+    .eq('id', id)
+  if (error) {
+    if (error.code === '23503') {
+      throw new Error('주문 배정 또는 운송장 내역이 있어 삭제할 수 없습니다. 비활성화를 이용해주세요.')
+    }
+    throw new Error(`공급처 삭제 실패: ${error.message}`)
+  }
+}

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus, Pencil, Power, Search, X, Upload } from 'lucide-react'
+import { Plus, Pencil, Power, RotateCcw, Search, Trash2, X, Upload } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -49,7 +49,7 @@ import type { SupplierFormData } from '@/lib/schemas'
 const EMPTY_FORM: SupplierFormData = { name: '', contact: '', memo: '' }
 
 export default function SupplierManage() {
-  const { suppliers, loading, create, update, remove } = useSuppliers(true)
+  const { suppliers, loading, create, update, remove, restore, hardRemove } = useSuppliers(true)
   const { templates } = useSupplierTemplates()
   const navigate = useNavigate()
 
@@ -210,6 +210,15 @@ export default function SupplierManage() {
       // toast already shown by hook
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function handleHardDelete(supplier: Supplier) {
+    if (!confirm(`"${supplier.name}" 공급처를 완전삭제합니다. 복구할 수 없습니다.`)) return
+    try {
+      await hardRemove(supplier.id)
+    } catch {
+      // toast already shown by hook
     }
   }
 
@@ -382,6 +391,15 @@ export default function SupplierManage() {
                           >
                             <Pencil size={14} />
                           </button>
+                          {!s.isActive && (
+                            <button
+                              className="flex h-7 w-7 items-center justify-center rounded-md text-t-mute hover:bg-blue-50 hover:text-primary"
+                              onClick={(e) => { e.stopPropagation(); void restore(s.id) }}
+                              aria-label="활성화"
+                            >
+                              <RotateCcw size={14} />
+                            </button>
+                          )}
                           {s.isActive && (
                             <button
                               className="flex h-7 w-7 items-center justify-center rounded-md text-t-mute hover:bg-error-light hover:text-error"
@@ -391,6 +409,13 @@ export default function SupplierManage() {
                               <Power size={14} />
                             </button>
                           )}
+                          <button
+                            className="flex h-7 w-7 items-center justify-center rounded-md text-t-mute hover:bg-red-50 hover:text-status-error"
+                            onClick={(e) => { e.stopPropagation(); void handleHardDelete(s) }}
+                            aria-label="완전삭제"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </TableCell>
                     </TableRow>

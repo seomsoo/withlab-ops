@@ -6,6 +6,7 @@ import {
   createFruitDictionary,
   updateFruitDictionary,
   softDeleteFruitDictionary,
+  hardDeleteFruitDictionary,
 } from '@/lib/supabase/fruitDictionary'
 
 import type { FruitDictionary, SynonymGroup } from '@/types'
@@ -118,5 +119,21 @@ export function useFruitDictionary(activeOnly = true) {
     []
   )
 
-  return { dictionaries, loading, error, refetch, create, update, remove }
+  const hardRemove = useCallback(
+    async (id: string) => {
+      try {
+        await hardDeleteFruitDictionary(id)
+        setDictionaries((prev) => prev.filter((d) => d.id !== id))
+        toast.success('과일 사전을 완전삭제했습니다')
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '오류가 발생했습니다'
+        toast.error(message)
+        throw err
+      }
+    },
+    []
+  )
+
+  return { dictionaries, loading, error, refetch, create, update, remove, hardRemove }
 }

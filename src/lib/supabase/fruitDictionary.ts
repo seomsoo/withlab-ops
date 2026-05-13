@@ -94,3 +94,12 @@ export async function softDeleteFruitDictionary(id: string): Promise<void> {
 
   if (error) throw new Error(`과일 사전 삭제 실패: ${error.message}`)
 }
+
+export async function hardDeleteFruitDictionary(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('fruit_dictionary')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error(`과일 사전 완전삭제 실패: ${error.message}`)
+}

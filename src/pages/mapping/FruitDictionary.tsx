@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -75,7 +75,7 @@ function parseSynonymGroups(groups: SynonymGroupForm[]): SynonymGroup[] {
 }
 
 export default function FruitDictionary() {
-  const { dictionaries, loading, create, update, remove } =
+  const { dictionaries, loading, create, update, remove, hardRemove } =
     useFruitDictionary(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -142,6 +142,23 @@ export default function FruitDictionary() {
   const handleDelete = async (id: string) => {
     try {
       await remove(id)
+    } catch {
+      // toast handled in hook
+    }
+  }
+
+  const handleRestore = async (id: string) => {
+    try {
+      await update(id, { isActive: true })
+    } catch {
+      // toast handled in hook
+    }
+  }
+
+  const handleHardDelete = async (id: string) => {
+    if (!confirm('완전삭제하면 복구할 수 없습니다. 삭제하시겠습니까?')) return
+    try {
+      await hardRemove(id)
     } catch {
       // toast handled in hook
     }
@@ -252,6 +269,8 @@ export default function FruitDictionary() {
                   dict={d}
                   onEdit={() => openEdit(d)}
                   onDelete={() => handleDelete(d.id)}
+                  onRestore={() => handleRestore(d.id)}
+                  onHardDelete={() => handleHardDelete(d.id)}
                   inactive
                 />
               ))}
@@ -384,11 +403,15 @@ function DictionaryCard({
   dict,
   onEdit,
   onDelete,
+  onRestore,
+  onHardDelete,
   inactive,
 }: {
   dict: FruitDictionaryType
   onEdit: () => void
   onDelete: () => void
+  onRestore?: () => void
+  onHardDelete?: () => void
   inactive?: boolean
 }) {
   return (
@@ -408,18 +431,36 @@ function DictionaryCard({
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {inactive && onRestore && (
+            <button
+              onClick={onRestore}
+              className="rounded p-1.5 text-t-mute hover:bg-blue-50 hover:text-primary"
+            >
+              <RotateCcw size={14} />
+            </button>
+          )}
           <button
             onClick={onEdit}
             className="rounded p-1.5 text-t-mute hover:bg-bg-subtle hover:text-t-secondary"
           >
             <Pencil size={14} />
           </button>
-          <button
-            onClick={onDelete}
-            className="rounded p-1.5 text-t-mute hover:bg-red-50 hover:text-status-error"
-          >
-            <Trash2 size={14} />
-          </button>
+          {inactive && onHardDelete ? (
+            <button
+              onClick={onHardDelete}
+              className="rounded p-1.5 text-t-mute hover:bg-red-50 hover:text-status-error"
+              title="완전삭제"
+            >
+              <Trash2 size={14} />
+            </button>
+          ) : (
+            <button
+              onClick={onDelete}
+              className="rounded p-1.5 text-t-mute hover:bg-red-50 hover:text-status-error"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
       </div>
       {(dict.gradeSynonyms.length > 0 ||
