@@ -16,13 +16,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Table,
   TableBody,
   TableCell,
@@ -32,59 +25,40 @@ import {
 } from '@/components/ui/table'
 
 import { useCourierMappings } from '@/hooks/useCourierMappings'
-import { useSuppliers } from '@/hooks/useSuppliers'
 import { courierMappingFormSchema } from '@/lib/schemas'
 
-import type { CourierMappingWithSupplier, CourierMappingFormData } from '@/lib/schemas'
+import type { CourierMapping as CourierMappingType } from '@/types'
+import type { CourierMappingFormData } from '@/lib/schemas'
 
 const EMPTY_FORM: CourierMappingFormData = {
-  sourceSupplierId: '',
   sourceName: '',
   coupangName: '',
   tossName: '',
 }
 
 export default function CourierMapping() {
-  const { mappings, loading: mappingsLoading, create, update, remove } = useCourierMappings()
-  const { suppliers, loading: suppliersLoading } = useSuppliers()
+  const { mappings, loading, create, update, remove } = useCourierMappings()
 
   const [search, setSearch] = useState('')
-  const [supplierFilter, setSupplierFilter] = useState('all')
 
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editing, setEditing] = useState<CourierMappingWithSupplier | null>(null)
+  const [editing, setEditing] = useState<CourierMappingType | null>(null)
   const [form, setForm] = useState<CourierMappingFormData>(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
 
-  const [deleteTarget, setDeleteTarget] = useState<CourierMappingWithSupplier | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<CourierMappingType | null>(null)
   const [deleting, setDeleting] = useState(false)
 
-  const loading = mappingsLoading || suppliersLoading
-
-  const sorted = useMemo(() => {
-    return [...mappings].sort((a, b) => {
-      const nameComp = a.supplierName.localeCompare(b.supplierName)
-      if (nameComp !== 0) return nameComp
-      return a.sourceName.localeCompare(b.sourceName)
-    })
-  }, [mappings])
-
   const filtered = useMemo(() => {
-    return sorted.filter((m) => {
-      if (supplierFilter !== 'all' && m.sourceSupplierId !== supplierFilter)
-        return false
-      if (search.trim()) {
-        const q = search.trim().toLowerCase()
-        if (
-          !m.sourceName.toLowerCase().includes(q) &&
-          !m.coupangName.toLowerCase().includes(q) &&
-          !m.tossName.toLowerCase().includes(q)
-        )
-          return false
-      }
-      return true
-    })
-  }, [sorted, search, supplierFilter])
+    if (!search.trim()) return mappings
+    const q = search.trim().toLowerCase()
+    return mappings.filter(
+      (m) =>
+        m.sourceName.toLowerCase().includes(q) ||
+        m.coupangName.toLowerCase().includes(q) ||
+        m.tossName.toLowerCase().includes(q)
+    )
+  }, [mappings, search])
 
   function openCreate() {
     setEditing(null)
@@ -92,10 +66,9 @@ export default function CourierMapping() {
     setDialogOpen(true)
   }
 
-  function openEdit(mapping: CourierMappingWithSupplier) {
+  function openEdit(mapping: CourierMappingType) {
     setEditing(mapping)
     setForm({
-      sourceSupplierId: mapping.sourceSupplierId,
       sourceName: mapping.sourceName,
       coupangName: mapping.coupangName,
       tossName: mapping.tossName,
@@ -153,7 +126,7 @@ export default function CourierMapping() {
     <>
       <PageHeader
         title="택배사 매핑"
-        description="공급처 운송장의 택배사명을 플랫폼 정식 명칭으로 변환합니다. 운송장 출력 시 자동 적용됩니다."
+        description="운송장의 택배사명을 쿠팡/토스 정식 명칭으로 변환합니다. 모든 공급처에 공통 적용됩니다."
         actions={
           <Button onClick={openCreate}>
             <Plus size={16} />
@@ -196,45 +169,22 @@ export default function CourierMapping() {
                 </button>
               )}
             </div>
-
-            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 공급처</SelectItem>
-                {suppliers.map((s) => (
-                  <SelectItem key={s.id} value={s.id}>
-                    {s.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {!hasResults ? (
             <EmptyState
               title="검색 조건에 맞는 결과가 없습니다"
               action={
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setSearch('')
-                    setSupplierFilter('all')
-                  }}
-                >
-                  필터 초기화
+                <Button variant="outline" onClick={() => setSearch('')}>
+                  검색 초기화
                 </Button>
               }
             />
           ) : (
             <div className="overflow-x-auto rounded-radius-lg border border-line bg-card shadow-sm">
-              <Table className="min-w-[600px]">
+              <Table className="min-w-[500px]">
                 <TableHeader>
                   <TableRow className="bg-gray-50 hover:bg-gray-50">
-                    <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
-                      공급처
-                    </TableHead>
                     <TableHead className="text-xs font-semibold tracking-wider text-t-mute">
                       원본 택배사명
                     </TableHead>
@@ -250,16 +200,6 @@ export default function CourierMapping() {
                 <TableBody>
                   {filtered.map((m) => (
                     <TableRow key={m.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium">{m.supplierName}</span>
-                          {!m.supplierIsActive && (
-                            <span className="inline-flex items-center rounded-[6px] bg-gray-200 px-2 py-[3px] text-[11px] font-semibold leading-snug text-t-mute">
-                              비활성
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
                       <TableCell>
                         <span className="inline-block rounded-md bg-gray-100 px-2.5 py-1 text-[13px] font-semibold text-t-strong">
                           {m.sourceName}
@@ -307,34 +247,6 @@ export default function CourierMapping() {
             </DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label>
-                공급처 <span className="text-error">*</span>
-              </Label>
-              <Select
-                value={form.sourceSupplierId}
-                onValueChange={(v) =>
-                  setForm((f) => ({ ...f, sourceSupplierId: v }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="공급처 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                  {editing && !editing.supplierIsActive && (
-                    <SelectItem value={editing.sourceSupplierId}>
-                      {editing.supplierName} (비활성)
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="flex flex-col gap-1.5">
               <Label>
                 원본 택배사명 <span className="text-error">*</span>
@@ -389,7 +301,6 @@ export default function CourierMapping() {
               onClick={handleSave}
               disabled={
                 saving ||
-                !form.sourceSupplierId ||
                 !form.sourceName.trim() ||
                 !form.coupangName.trim() ||
                 !form.tossName.trim()

@@ -180,7 +180,7 @@ export default function TrackingMatchResult() {
     const matchedOnes = trackings.filter((t) => t.status === 'matched' && t.trackingCompany)
     let count = 0
     for (const t of matchedOnes) {
-      const result = convertCourierName(t.trackingCompany, t.sourceSupplierId, 'coupang', courierMappings)
+      const result = convertCourierName(t.trackingCompany, 'coupang', courierMappings)
       if (!result.isMapped) count++
     }
     return count

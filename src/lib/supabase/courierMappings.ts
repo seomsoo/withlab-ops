@@ -8,35 +8,16 @@ import { toFriendlyDbError } from '@/lib/supabase/errors'
 import type { CourierMapping } from '@/types'
 import type {
   CourierMappingFormData,
-  CourierMappingWithSupplier,
   CourierMappingRow,
 } from '@/lib/schemas'
 
-type CourierMappingJoinRow = CourierMappingRow & {
-  supplier: { id: string; name: string; is_active: boolean } | null
-}
-
-function toCourierMappingWithSupplier(
-  row: CourierMappingJoinRow
-): CourierMappingWithSupplier {
-  return {
-    ...toCourierMapping(row),
-    supplierName: row.supplier?.name ?? '알 수 없음',
-    supplierIsActive: row.supplier?.is_active ?? false,
-  }
-}
-
-export async function getCourierMappings(): Promise<
-  CourierMappingWithSupplier[]
-> {
+export async function getCourierMappings(): Promise<CourierMapping[]> {
   const { data, error } = await supabase
     .from('courier_mappings')
-    .select(
-      '*, supplier:suppliers!courier_mappings_source_supplier_id_fkey(id, name, is_active)'
-    )
+    .select('id, source_name, coupang_name, toss_name, created_at')
     .order('source_name')
   if (error) throw new Error(`택배사 매핑 조회 실패: ${error.message}`)
-  return (data as CourierMappingJoinRow[]).map(toCourierMappingWithSupplier)
+  return (data as CourierMappingRow[]).map(toCourierMapping)
 }
 
 export async function createCourierMapping(
@@ -46,7 +27,6 @@ export async function createCourierMapping(
   const { data, error } = await supabase
     .from('courier_mappings')
     .insert({
-      source_supplier_id: parsed.sourceSupplierId,
       source_name: parsed.sourceName,
       coupang_name: parsed.coupangName,
       toss_name: parsed.tossName,
@@ -65,7 +45,6 @@ export async function updateCourierMapping(
   const { data, error } = await supabase
     .from('courier_mappings')
     .update({
-      source_supplier_id: parsed.sourceSupplierId,
       source_name: parsed.sourceName,
       coupang_name: parsed.coupangName,
       toss_name: parsed.tossName,

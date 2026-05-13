@@ -74,7 +74,6 @@ export function useTrackingExport(workSessionId: string) {
             if (t.trackingCompany) {
               const converted = convertCourierName(
                 t.trackingCompany,
-                t.sourceSupplierId,
                 platform,
                 mappings
               )
@@ -147,7 +146,6 @@ export function useTrackingExport(workSessionId: string) {
 
           const converted = convertCourierName(
             t.trackingCompany,
-            t.sourceSupplierId,
             platform,
             mappings
           )

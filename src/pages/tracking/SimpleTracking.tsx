@@ -314,7 +314,6 @@ export default function SimpleTracking() {
         const items = platformMatched.map((m) => {
           const converted = convertCourierName(
             m.trackingCompany,
-            m.supplierId,
             platform,
             mappings as CourierMapping[]
           )

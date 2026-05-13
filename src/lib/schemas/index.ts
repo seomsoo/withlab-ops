@@ -165,7 +165,6 @@ export const nameMappingSchema = z.object({
 
 export const courierMappingSchema = z.object({
   id: uuidString,
-  sourceSupplierId: uuidString,
   sourceName: z.string(),
   coupangName: z.string(),
   tossName: z.string(),
@@ -197,7 +196,6 @@ export const nameMappingFormSchema = z.object({
 export type NameMappingFormData = z.infer<typeof nameMappingFormSchema>
 
 export const courierMappingFormSchema = z.object({
-  sourceSupplierId: requiredUuid('공급처를 선택해주세요'),
   sourceName: requiredTrimmedString('원본 택배사명을 입력해주세요'),
   coupangName: requiredTrimmedString('쿠팡 택배사명을 입력해주세요'),
   tossName: requiredTrimmedString('토스 택배사명을 입력해주세요'),
@@ -217,10 +215,6 @@ export type NameMappingWithSupplier = NameMapping & {
   supplierIsActive: boolean
 }
 
-export type CourierMappingWithSupplier = CourierMapping & {
-  supplierName: string
-  supplierIsActive: boolean
-}
 
 export const columnMappingItemSchema = z.object({
   targetColumnIndex: z.number().int(),
@@ -458,7 +452,6 @@ export type NameMappingRow = {
 
 export type CourierMappingRow = {
   id: string
-  source_supplier_id: string
   source_name: string
   coupang_name: string
   toss_name: string
@@ -690,10 +683,9 @@ export function toNameMapping(row: NameMappingRow) {
   }
 }
 
-export function toCourierMapping(row: CourierMappingRow) {
+export function toCourierMapping(row: CourierMappingRow): CourierMapping {
   return {
     id: row.id,
-    sourceSupplierId: row.source_supplier_id,
     sourceName: row.source_name,
     coupangName: row.coupang_name,
     tossName: row.toss_name,

@@ -86,7 +86,6 @@ describe('nameMappingFormSchema', () => {
 describe('courierMappingFormSchema', () => {
   it('trims all string fields', () => {
     const result = courierMappingFormSchema.parse({
-      sourceSupplierId: '550e8400-e29b-41d4-a716-446655440000',
       sourceName: '  대한통운  ',
       coupangName: '  CJ대한통운  ',
       tossName: '  CJ대한통운  ',
@@ -98,7 +97,6 @@ describe('courierMappingFormSchema', () => {
 
   it('rejects empty sourceName', () => {
     const result = courierMappingFormSchema.safeParse({
-      sourceSupplierId: '550e8400-e29b-41d4-a716-446655440000',
       sourceName: '',
       coupangName: 'CJ대한통운',
       tossName: 'CJ대한통운',
@@ -175,14 +173,12 @@ describe('toCourierMapping', () => {
   it('converts snake_case row to camelCase', () => {
     const row: CourierMappingRow = {
       id: '550e8400-e29b-41d4-a716-446655440000',
-      source_supplier_id: '550e8400-e29b-41d4-a716-446655440001',
       source_name: '대한통운',
       coupang_name: 'CJ대한통운',
       toss_name: 'CJ대한통운',
       created_at: '2026-05-10T00:00:00Z',
     }
     const result = toCourierMapping(row)
-    expect(result.sourceSupplierId).toBe(row.source_supplier_id)
     expect(result.sourceName).toBe('대한통운')
     expect(result.coupangName).toBe('CJ대한통운')
     expect(result.tossName).toBe('CJ대한통운')

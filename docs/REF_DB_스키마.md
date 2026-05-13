@@ -7,7 +7,6 @@
 ```
 suppliers ─────────────┬───── product_mappings
     │                  ├───── name_mappings
-    │                  ├───── courier_mappings
     │                  ├───── supplier_templates
     │                  ├───── supplier_product_templates  ← Phase 7
     │                  └───── supplier_products           ← Phase 7
@@ -19,6 +18,7 @@ work_sessions
     └── tracking_imports ──────────────────┘
 
 platform_templates (독립)
+courier_mappings (독립)
 fruit_dictionary (독립)               ← Phase 8
 ```
 
@@ -239,14 +239,13 @@ create index idx_nm_lookup on name_mappings(supplier_id, platform, platform_prod
 create table courier_mappings (
   id uuid primary key default gen_random_uuid(),
 
-  source_supplier_id uuid not null references suppliers(id) on delete cascade,
   source_name text not null,
   coupang_name text not null,
   toss_name text not null,
 
   created_at timestamptz default now(),
 
-  unique (source_supplier_id, source_name)
+  unique (source_name)
 );
 
 -- ==========================================

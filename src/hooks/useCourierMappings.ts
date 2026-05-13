@@ -8,10 +8,11 @@ import {
   deleteCourierMapping,
 } from '@/lib/supabase/courierMappings'
 
-import type { CourierMappingWithSupplier, CourierMappingFormData } from '@/lib/schemas'
+import type { CourierMapping } from '@/types'
+import type { CourierMappingFormData } from '@/lib/schemas'
 
 export function useCourierMappings() {
-  const [mappings, setMappings] = useState<CourierMappingWithSupplier[]>([])
+  const [mappings, setMappings] = useState<CourierMapping[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 

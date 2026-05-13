@@ -237,7 +237,6 @@ export type NameMapping = {
 
 export type CourierMapping = {
   id: string
-  sourceSupplierId: string
   sourceName: string
   coupangName: string
   tossName: string
