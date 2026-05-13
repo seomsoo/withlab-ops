@@ -294,10 +294,19 @@ export function useTrackingUpload(workSessionId: string) {
     [workSessionId]
   )
 
+  const removeImport = useCallback(
+    async (importId: string) => {
+      await deleteTrackingImport(importId)
+      setTrackingImports((prev) => prev.filter((i) => i.id !== importId))
+    },
+    []
+  )
+
   return {
     trackingImports,
     isLoading,
     uploadTracking,
     reuploadTracking,
+    removeImport,
   }
 }

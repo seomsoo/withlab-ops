@@ -54,7 +54,10 @@ export async function deleteTrackingImport(importId: string): Promise<void> {
     .delete()
     .eq('id', importId)
 
-  if (error) throw new Error(`운송장 임포트 삭제 실패: ${error.message}`)
+  if (error) {
+    console.error('tracking_import 삭제 실패:', error)
+    throw new Error('운송장 파일 삭제에 실패했습니다')
+  }
 }
 
 export async function saveTrackings(

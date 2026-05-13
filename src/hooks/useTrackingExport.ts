@@ -22,6 +22,8 @@ import type {
 type PlatformExportData = {
   count: number
   unmatchedCount: number
+  labels: string[]
+  countByLabel: Record<string, number>
 }
 
 export function useTrackingExport(workSessionId: string) {
@@ -29,8 +31,8 @@ export function useTrackingExport(workSessionId: string) {
     coupang: PlatformExportData
     toss: PlatformExportData
   }>({
-    coupang: { count: 0, unmatchedCount: 0 },
-    toss: { count: 0, unmatchedCount: 0 },
+    coupang: { count: 0, unmatchedCount: 0, labels: [], countByLabel: {} },
+    toss: { count: 0, unmatchedCount: 0, labels: [], countByLabel: {} },
   })
   const [courierWarnings, setCourierWarnings] = useState<CourierWarning[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -52,14 +54,22 @@ export function useTrackingExport(workSessionId: string) {
         let tossCount = 0
         let totalUnmatched = 0
         const warnings: CourierWarning[] = []
+        const coupangLabelCounts: Record<string, number> = {}
+        const tossLabelCounts: Record<string, number> = {}
 
         for (const t of trackings) {
           if (t.status === 'matched' && t.allocationId) {
             const alloc = allocMap.get(t.allocationId)
             if (!alloc) continue
             const platform = alloc.order.platform
-            if (platform === 'coupang') coupangCount++
-            else tossCount++
+            const label = alloc.order.orderImportLabel ?? ''
+            if (platform === 'coupang') {
+              coupangCount++
+              coupangLabelCounts[label] = (coupangLabelCounts[label] ?? 0) + 1
+            } else {
+              tossCount++
+              tossLabelCounts[label] = (tossLabelCounts[label] ?? 0) + 1
+            }
 
             if (t.trackingCompany) {
               const converted = convertCourierName(
@@ -85,8 +95,18 @@ export function useTrackingExport(workSessionId: string) {
         }
 
         setExportData({
-          coupang: { count: coupangCount, unmatchedCount: totalUnmatched },
-          toss: { count: tossCount, unmatchedCount: totalUnmatched },
+          coupang: {
+            count: coupangCount,
+            unmatchedCount: totalUnmatched,
+            labels: Object.keys(coupangLabelCounts),
+            countByLabel: coupangLabelCounts,
+          },
+          toss: {
+            count: tossCount,
+            unmatchedCount: totalUnmatched,
+            labels: Object.keys(tossLabelCounts),
+            countByLabel: tossLabelCounts,
+          },
         })
         setCourierWarnings(warnings)
       } catch (err) {
@@ -99,7 +119,7 @@ export function useTrackingExport(workSessionId: string) {
   }, [workSessionId])
 
   const downloadPlatformFile = useCallback(
-    async (platform: Platform) => {
+    async (platform: Platform, filterLabel?: string) => {
       try {
         const template = await getPlatformTemplate(platform)
         if (!template) {
@@ -123,6 +143,7 @@ export function useTrackingExport(workSessionId: string) {
           const alloc = allocMap.get(t.allocationId)
           if (!alloc) continue
           if (alloc.order.platform !== platform) continue
+          if (filterLabel && alloc.order.orderImportLabel !== filterLabel) continue
 
           const converted = convertCourierName(
             t.trackingCompany,
@@ -155,6 +176,7 @@ export function useTrackingExport(workSessionId: string) {
             originalRow: t.raw,
             originalRowValues: alloc.order.rawValues,
             originalRowNumber: alloc.order.rawRowNumber,
+            orderImportLabel: alloc.order.orderImportLabel,
           })
         }
 
@@ -176,13 +198,17 @@ export function useTrackingExport(workSessionId: string) {
           templateBlob
         )
 
-        const fileName = buildTrackingExportFileName(platform)
+        const suffix = filterLabel ? `_${filterLabel}` : ''
+        const fileName = buildTrackingExportFileName(platform).replace(
+          '.xlsx',
+          `${suffix}.xlsx`
+        )
         downloadBlob(resultBlob, fileName)
 
         setCourierWarnings(newWarnings)
 
-        const label = platform === 'coupang' ? '쿠팡' : '토스'
-        toast.success(`${label} 운송장 파일을 다운로드했습니다`)
+        const platformLabel = platform === 'coupang' ? '쿠팡' : '토스'
+        toast.success(`${platformLabel} 운송장 파일을 다운로드했습니다`)
       } catch (err) {
         toast.error(err instanceof Error ? err.message : '다운로드 실패')
         throw err

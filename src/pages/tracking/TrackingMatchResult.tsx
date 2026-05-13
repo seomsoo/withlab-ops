@@ -58,6 +58,17 @@ import type { TrackingStatus, CourierMapping } from '@/types'
 import type { AllocationWithOrder } from '@/lib/supabase/allocations'
 import type { SupplierTrackingProgress } from '@/lib/supabase/trackings'
 
+function extractFromRaw(raw: Record<string, unknown>, keys: string[]): string {
+  for (const k of keys) {
+    const v = raw[k]
+    if (v != null && v !== '') return String(v)
+  }
+  return ''
+}
+
+const PRODUCT_NAME_KEYS = ['상품명', '품목명', '품명', '제품명']
+const RECIPIENT_KEYS = ['수령인', '수취인', '받는분', '받는사람']
+
 type FilterTab = TrackingStatus | 'all'
 
 const FILTER_TABS: { id: FilterTab; label: string }[] = [
@@ -151,6 +162,17 @@ export default function TrackingMatchResult() {
     const ids = new Set(trackings.map((t) => t.sourceSupplierId))
     return [...ids]
   }, [trackings])
+
+  const displayStats = useMemo(() => {
+    if (supplierFilter === 'all') return stats
+    const filtered = trackings.filter((t) => t.sourceSupplierId === supplierFilter)
+    const result = { total: 0, matched: 0, unmatched: 0, duplicated: 0, invalid: 0 }
+    for (const t of filtered) {
+      result.total++
+      result[t.status]++
+    }
+    return result
+  }, [trackings, supplierFilter, stats])
 
   const unmappedCourierCount = useMemo(() => {
     if (courierMappings.length === 0) return 0
@@ -289,10 +311,10 @@ export default function TrackingMatchResult() {
 
         {/* 요약 카드 */}
         <div className="grid grid-cols-4 gap-3">
-          <StatCard tone="primary" label="매칭됨" value={stats.matched} hint={stats.total > 0 ? `전체의 ${Math.round((stats.matched / stats.total) * 100)}%` : ''} icon={<Check size={16} />} />
-          <StatCard tone="warning" label="미매칭" value={stats.unmatched} hint="수동 매칭 필요" icon={<AlertCircle size={16} />} />
-          <StatCard tone="amber" label="중복" value={stats.duplicated} hint="둘 중 하나 선택" icon={<AlertTriangle size={16} />} />
-          <StatCard tone="error" label="오류" value={stats.invalid} hint="형식/누락" icon={<X size={16} />} />
+          <StatCard tone="primary" label="매칭됨" value={displayStats.matched} hint={displayStats.total > 0 ? `전체의 ${Math.round((displayStats.matched / displayStats.total) * 100)}%` : ''} icon={<Check size={16} />} />
+          <StatCard tone="warning" label="미매칭" value={displayStats.unmatched} hint="수동 매칭 필요" icon={<AlertCircle size={16} />} />
+          <StatCard tone="amber" label="중복" value={displayStats.duplicated} hint="둘 중 하나 선택" icon={<AlertTriangle size={16} />} />
+          <StatCard tone="error" label="오류" value={displayStats.invalid} hint="형식/누락" icon={<X size={16} />} />
         </div>
 
         {/* 필터 바 + 벌크 액션 */}
@@ -300,7 +322,7 @@ export default function TrackingMatchResult() {
           <div className="flex items-center gap-2">
             {FILTER_TABS.map((tab) => {
               const count =
-                tab.id === 'all' ? stats.total : stats[tab.id as TrackingStatus]
+                tab.id === 'all' ? displayStats.total : displayStats[tab.id as TrackingStatus]
               return (
                 <button
                   key={tab.id}
@@ -339,32 +361,31 @@ export default function TrackingMatchResult() {
                 </SelectContent>
               </Select>
             )}
+            {!isCompleted && (stats.invalid > 0 || stats.duplicated > 0) && (
+              <>
+                {stats.invalid > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={bulkProcessing}
+                    onClick={() => void handleBulkIgnoreInvalid()}
+                  >
+                    무효 건 전체 건너뛰기
+                  </Button>
+                )}
+                {stats.duplicated > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={bulkProcessing}
+                    onClick={() => void handleBulkIgnoreDuplicated()}
+                  >
+                    중복 건 전체 건너뛰기
+                  </Button>
+                )}
+              </>
+            )}
           </div>
-
-          {!isCompleted && (stats.invalid > 0 || stats.duplicated > 0) && (
-            <div className="flex items-center gap-2">
-              {stats.invalid > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={bulkProcessing}
-                  onClick={() => void handleBulkIgnoreInvalid()}
-                >
-                  무효 건 전체 건너뛰기
-                </Button>
-              )}
-              {stats.duplicated > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={bulkProcessing}
-                  onClick={() => void handleBulkIgnoreDuplicated()}
-                >
-                  중복 건 전체 건너뛰기
-                </Button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* 테이블 */}
@@ -373,6 +394,7 @@ export default function TrackingMatchResult() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-20">상태</TableHead>
+                {uniqueSupplierIds.length > 1 && <TableHead>공급처</TableHead>}
                 <TableHead>주문번호</TableHead>
                 <TableHead>상품명 / 수취인</TableHead>
                 <TableHead>택배사</TableHead>
@@ -383,7 +405,7 @@ export default function TrackingMatchResult() {
             <TableBody>
               {displayedTrackings.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-12 text-center text-t-mute">
+                  <TableCell colSpan={uniqueSupplierIds.length > 1 ? 7 : 6} className="py-12 text-center text-t-mute">
                     해당하는 운송장이 없습니다
                   </TableCell>
                 </TableRow>
@@ -397,12 +419,17 @@ export default function TrackingMatchResult() {
                     <TableCell>
                       <StatusPill status={t.status} />
                     </TableCell>
+                    {uniqueSupplierIds.length > 1 && (
+                      <TableCell className="text-sm">
+                        {supplierProgress.find((sp) => sp.supplierId === t.sourceSupplierId)?.supplierName ?? '-'}
+                      </TableCell>
+                    )}
                     <TableCell className="font-mono text-xs">
                       {t.rawOrderKey || '-'}
                     </TableCell>
                     <TableCell>
-                      <div className="text-sm">{t.raw['상품명'] as string ?? '-'}</div>
-                      <div className="text-xs text-t-mute">{t.raw['수령인'] as string ?? ''}</div>
+                      <div className="text-sm">{extractFromRaw(t.raw, PRODUCT_NAME_KEYS) || '-'}</div>
+                      <div className="text-xs text-t-mute">{extractFromRaw(t.raw, RECIPIENT_KEYS)}</div>
                     </TableCell>
                     <TableCell>
                       {t.trackingCompany || '-'}

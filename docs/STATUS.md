@@ -4,7 +4,7 @@
 > 수동 편집도 가능하지만, "현재 단계" 값은 커맨드의 기준이 되므로 정확히 유지할 것.
 
 ## 현재 단계
-9
+10
 
 ## 진행 단계 전체 흐름
 
@@ -286,6 +286,37 @@ Phase 0 검증 통과 후, Phase 1 시작 전에 반드시 거쳐야 한다.
   - [x] OG 메타태그 추가 (og:title, og:description — 카카오톡 공유 대응)
   - [x] 라우트별 코드 스플리팅: React.lazy + Suspense (초기 번들 2,403KB → 304KB, 87% 감소)
   - [x] `npm run build` 통과
+- **이슈/메모**: -
+
+### Phase 10: 운송장 워크플로우 분리 + 간편 운송장 + 쿠팡 분리
+- **상태**: ✅ 검증 통과
+- **시작일**: 2026-05-13
+- **완료일**: 2026-05-13
+- **스펙 문서**: `docs/specs/PHASE_10_운송장_워크플로우_분리.md`
+- **검증 결과**: `docs/specs/PHASE_10-verify.md` — ✅ 통과 (P1: 1건 수정 완료, P2: 1건 수정 완료)
+- **선행 조건**: Phase 9 ✅
+- **산출물**:
+  - [x] Part A: 매칭 엔진 `ordered` 필터 제거 → `pending` + `ordered` 모두 매칭 대상 + 테스트
+  - [x] Part A: TrackingSessionSelector `active` 진입 허용 + UI 수정
+  - [x] Part A: workSession 상태 전이 완화 (`active` → `completed`)
+  - [x] Part C: 운송장 임포트 삭제 API (`deleteTrackingImport`) + 훅 + UI (확인 다이얼로그)
+  - [x] Part D: DB 마이그레이션 (order_imports label + unique 제약 변경)
+  - [x] Part D: 주문 업로드 "별도 파일" 옵션 + 라벨 자동 채번 (`쿠팡1`, `쿠팡2` 등)
+  - [x] Part D: 운송장 다운로드 라벨별 분리 다운로드
+  - [x] Part B: 직접 매칭 함수 (`directMatcher.ts`) + 테스트 10개
+  - [x] Part B: 간편 운송장 페이지 (`SimpleTracking.tsx`) — 3단계 스텝 UI
+  - [x] Part B: 라우트 (`/tracking/simple`) + TrackingSessionSelector 진입 버튼
+  - [x] 전체 빌드/테스트 통과 (208 tests)
+- **스펙 이후 추가 개선**:
+  - [x] 간편 운송장 Step 2: 공급처별 운송장 카드 확장 상세 (매칭/미매칭 탭 + 테이블)
+  - [x] 간편 운송장 Step 3: 공급처별 매칭 요약 칩 + 매칭 상세 테이블 (필터, 30행 제한)
+  - [x] 일반 운송장 매칭결과: 공급처 컬럼 추가 (다중 공급처 시 자동 표시)
+  - [x] 일반 운송장 매칭결과: 공급처 필터 드롭다운
+  - [x] 엣지케이스 수정 — directMatcher 크로스파일 중복 감지 (`alreadyMatchedOrderIds`)
+  - [x] 엣지케이스 수정 — 간편 운송장 주문 파일 삭제 시 운송장 결과 초기화
+  - [x] 엣지케이스 수정 — 매칭결과 통계가 공급처 필터 반영하도록 (`displayStats`)
+  - [x] 엣지케이스 수정 — 매칭결과 레이아웃 (공급처 드롭다운 + 벌크 액션 우측 그룹)
+  - [x] 엣지케이스 수정 — `t.raw` 컬럼명 하드코딩 → 복수 후보 키 탐색 (`extractFromRaw`)
 - **이슈/메모**: -
 
 ---

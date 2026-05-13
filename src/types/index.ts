@@ -198,6 +198,7 @@ export type TrackingExportItem = {
   originalRow: Record<string, unknown>
   originalRowValues: unknown[]
   originalRowNumber: number
+  orderImportLabel?: string
 }
 
 export type Supplier = {
@@ -294,6 +295,7 @@ export type OrderImport = {
   workSessionId: string
   platform: Platform
   fileName: string
+  label: string
   totalRows: number
   validCount: number
   invalidCount: number

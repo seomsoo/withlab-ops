@@ -6,11 +6,19 @@ import type {
   PlatformTrackingTemplate,
 } from '@/types'
 
+export function filterExportItemsByImportLabel(
+  items: TrackingExportItem[],
+  label: string
+): TrackingExportItem[] {
+  return items.filter((item) => item.orderImportLabel === label)
+}
+
 type CellStyleMap = Map<number, string>
 
 export function validateNoDuplicateAllocations(items: TrackingExportItem[]): void {
   const seen = new Set<string>()
   for (const item of items) {
+    if (!item.allocationId) continue
     if (seen.has(item.allocationId)) {
       throw new Error(`중복 매칭된 주문이 있습니다: ${item.matchingKey}`)
     }

@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ChevronLeft,
   RefreshCw,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -46,8 +47,13 @@ export default function TrackingUpload() {
   const navigate = useNavigate()
   const { session, loading: sessionLoading } = useWorkSession(sessionId!)
   const { suppliers, loading: suppliersLoading } = useSuppliers()
-  const { trackingImports, isLoading: importsLoading, uploadTracking, reuploadTracking } =
-    useTrackingUpload(sessionId!)
+  const {
+    trackingImports,
+    isLoading: importsLoading,
+    uploadTracking,
+    reuploadTracking,
+    removeImport,
+  } = useTrackingUpload(sessionId!)
 
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('')
   const [uploadResult, setUploadResult] = useState<{
@@ -60,6 +66,12 @@ export default function TrackingUpload() {
     importId: string
     supplierName: string
   } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{
+    importId: string
+    supplierName: string
+    trackingCount: number
+  } | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const isCompleted = session?.status === 'completed'
 
@@ -185,6 +197,21 @@ export default function TrackingUpload() {
                       {supplier?.name ?? '알 수 없음'}
                     </span>
                     <span className="text-green-600">{imp.validCount}건</span>
+                    {!isCompleted && (
+                      <button
+                        className="ml-1 rounded-full p-0.5 text-red-400 transition-colors hover:bg-red-100 hover:text-red-600"
+                        title="삭제"
+                        onClick={() =>
+                          setConfirmDelete({
+                            importId: imp.id,
+                            supplierName: supplier?.name ?? '알 수 없음',
+                            trackingCount: imp.validCount,
+                          })
+                        }
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
                   </div>
                 )
               })}
@@ -448,6 +475,32 @@ export default function TrackingUpload() {
         description="기존 운송장 데이터가 대체되고, 매칭 결과도 새로 계산됩니다."
         confirmText="다시 업로드"
         onConfirm={handleReuploadConfirm}
+      />
+
+      <ConfirmDialog
+        open={!!confirmDelete}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDelete(null)
+        }}
+        title={`${confirmDelete?.supplierName ?? ''} 운송장을 삭제할까요?`}
+        description={`이 파일의 매칭 결과 ${confirmDelete?.trackingCount ?? 0}건도 함께 삭제됩니다. 삭제 후 플랫폼 운송장 다운로드 파일에서 해당 건이 제외됩니다.`}
+        confirmText="삭제"
+        variant="destructive"
+        loading={deleting}
+        onConfirm={async () => {
+          if (!confirmDelete) return
+          setDeleting(true)
+          try {
+            await removeImport(confirmDelete.importId)
+            toast.success(`${confirmDelete.supplierName} 운송장을 삭제했습니다`)
+            setUploadResult(null)
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : '삭제에 실패했습니다')
+          } finally {
+            setDeleting(false)
+            setConfirmDelete(null)
+          }
+        }}
       />
     </>
   )

@@ -17,6 +17,7 @@ const TrackingSessionSelector = lazy(() => import('@/pages/tracking/TrackingSess
 const TrackingUpload = lazy(() => import('@/pages/tracking/TrackingUpload'))
 const TrackingMatchResult = lazy(() => import('@/pages/tracking/TrackingMatchResult'))
 const TrackingDownload = lazy(() => import('@/pages/tracking/TrackingDownload'))
+const SimpleTracking = lazy(() => import('@/pages/tracking/SimpleTracking'))
 const SupplierManage = lazy(() => import('@/pages/mapping/SupplierManage'))
 const SupplierDetail = lazy(() => import('@/pages/mapping/SupplierDetail'))
 const ProductMapping = lazy(() => import('@/pages/mapping/ProductMapping'))
@@ -68,6 +69,7 @@ export function AppRoutes() {
               path="/tracking/:sessionId/download"
               element={<TrackingDownload />}
             />
+            <Route path="/tracking/simple" element={<SimpleTracking />} />
 
             <Route path="/mapping" element={<MappingLayout />}>
               <Route index element={<Navigate to="suppliers" replace />} />

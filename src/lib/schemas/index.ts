@@ -287,6 +287,7 @@ export const orderImportSchema = z.object({
   workSessionId: uuidString,
   platform: platformSchema,
   fileName: z.string(),
+  label: z.string(),
   totalRows: z.number().int(),
   validCount: z.number().int(),
   invalidCount: z.number().int(),
@@ -403,6 +404,7 @@ export type OrderImportRow = {
   work_session_id: string
   platform: string
   file_name: string
+  label: string
   total_rows: number
   valid_count: number
   invalid_count: number
@@ -626,6 +628,7 @@ export function toOrderImport(row: OrderImportRow) {
     // as 사용 사유: DB text 컬럼 → 유니온 리터럴, check 제약으로 값 보장
     platform: row.platform as 'coupang' | 'toss',
     fileName: row.file_name,
+    label: row.label,
     totalRows: row.total_rows,
     validCount: row.valid_count,
     invalidCount: row.invalid_count,

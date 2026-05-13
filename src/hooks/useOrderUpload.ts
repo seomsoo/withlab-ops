@@ -12,6 +12,7 @@ import {
   getOrders,
   getOrderImports,
   deleteOrderImport,
+  updateOrderImportLabel,
 } from '@/lib/supabase/orders'
 
 import type { StandardOrder, OrderImport, ParseResult, Platform, DuplicateRow } from '@/types'
@@ -19,72 +20,112 @@ import type { StandardOrder, OrderImport, ParseResult, Platform, DuplicateRow } 
 export type UploadPlan = {
   file: File
   platform: Platform
-  existingImport: OrderImport | null
+  existingImports: OrderImport[]
   parseResult: ParseResult
 }
 
+function getNextLabel(platform: Platform, existingLabels: string[]): string {
+  const prefix = platform === 'coupang' ? '쿠팡' : '토스'
+  let n = existingLabels.length + 1
+  while (existingLabels.includes(`${prefix}${n}`)) n++
+  return `${prefix}${n}`
+}
+
+function getDefaultLabel(platform: Platform): string {
+  return platform === 'coupang' ? '쿠팡1' : '토스1'
+}
+
 export function useOrderUpload(workSessionId: string) {
-  const [coupangImport, setCoupangImport] = useState<OrderImport | null>(null)
-  const [tossImport, setTossImport] = useState<OrderImport | null>(null)
+  const [imports, setImports] = useState<OrderImport[]>([])
   const [orders, setOrders] = useState<StandardOrder[]>([])
   const [loading, setLoading] = useState(true)
+  const [parseResults, setParseResults] = useState<Map<string, ParseResult>>(
+    new Map()
+  )
 
-  const [coupangParseResult, setCoupangParseResult] =
-    useState<ParseResult | null>(null)
-  const [tossParseResult, setTossParseResult] =
-    useState<ParseResult | null>(null)
+  const coupangImports = useMemo(
+    () => imports.filter((i) => i.platform === 'coupang'),
+    [imports]
+  )
+  const tossImports = useMemo(
+    () => imports.filter((i) => i.platform === 'toss'),
+    [imports]
+  )
+  const coupangImport = coupangImports[0] ?? null
+  const tossImport = tossImports[0] ?? null
+
+  const coupangParseResult = useMemo(() => {
+    if (coupangImports.length === 0) return null
+    const coupangOrders = orders.filter((o) => o.platform === 'coupang')
+    const allInvalid = coupangImports.flatMap((i) => {
+      const pr = parseResults.get(i.id)
+      return pr?.invalidRows ?? i.invalidRows
+    })
+    const allDuplicate = coupangImports.flatMap((i) => {
+      const pr = parseResults.get(i.id)
+      return pr?.duplicateRows ?? i.duplicateRows
+    })
+    const totalRows = coupangImports.reduce((s, i) => s + i.totalRows, 0)
+    const invalidCount = coupangImports.reduce((s, i) => s + i.invalidCount, 0)
+    const dupCount = coupangImports.reduce((s, i) => s + i.duplicateCount, 0)
+    return {
+      orders: coupangOrders,
+      invalidRows: allInvalid,
+      duplicateRows: allDuplicate,
+      meta: {
+        platform: 'coupang' as Platform,
+        totalRows,
+        skippedRows: 0,
+        validRows: coupangOrders.length,
+        invalidRows: invalidCount,
+        duplicateRows: dupCount,
+      },
+    }
+  }, [coupangImports, orders, parseResults])
+
+  const tossParseResult = useMemo(() => {
+    if (tossImports.length === 0) return null
+    const tossOrders = orders.filter((o) => o.platform === 'toss')
+    const allInvalid = tossImports.flatMap((i) => {
+      const pr = parseResults.get(i.id)
+      return pr?.invalidRows ?? i.invalidRows
+    })
+    const allDuplicate = tossImports.flatMap((i) => {
+      const pr = parseResults.get(i.id)
+      return pr?.duplicateRows ?? i.duplicateRows
+    })
+    const totalRows = tossImports.reduce((s, i) => s + i.totalRows, 0)
+    const invalidCount = tossImports.reduce((s, i) => s + i.invalidCount, 0)
+    const dupCount = tossImports.reduce((s, i) => s + i.duplicateCount, 0)
+    return {
+      orders: tossOrders,
+      invalidRows: allInvalid,
+      duplicateRows: allDuplicate,
+      meta: {
+        platform: 'toss' as Platform,
+        totalRows,
+        skippedRows: 0,
+        validRows: tossOrders.length,
+        invalidRows: invalidCount,
+        duplicateRows: dupCount,
+      },
+    }
+  }, [tossImports, orders, parseResults])
 
   useEffect(() => {
     let alive = true
     void (async () => {
       try {
         setLoading(true)
-        const [imports, orderData] = await Promise.all([
+        const [importData, orderData] = await Promise.all([
           getOrderImports(workSessionId),
           getOrders(workSessionId),
         ])
         if (!alive) return
 
-        setCoupangImport(null)
-        setTossImport(null)
-        setCoupangParseResult(null)
-        setTossParseResult(null)
-        setOrders([])
-
-        for (const imp of imports) {
-          if (imp.platform === 'coupang') {
-            setCoupangImport(imp)
-            setCoupangParseResult({
-              orders: orderData.filter((o) => o.platform === 'coupang'),
-              invalidRows: imp.invalidRows,
-              duplicateRows: imp.duplicateRows,
-              meta: {
-                platform: 'coupang',
-                totalRows: imp.totalRows,
-                skippedRows: 0,
-                validRows: imp.validCount,
-                invalidRows: imp.invalidCount,
-                duplicateRows: imp.duplicateCount,
-              },
-            })
-          } else {
-            setTossImport(imp)
-            setTossParseResult({
-              orders: orderData.filter((o) => o.platform === 'toss'),
-              invalidRows: imp.invalidRows,
-              duplicateRows: imp.duplicateRows,
-              meta: {
-                platform: 'toss',
-                totalRows: imp.totalRows,
-                skippedRows: 0,
-                validRows: imp.validCount,
-                invalidRows: imp.invalidCount,
-                duplicateRows: imp.duplicateCount,
-              },
-            })
-          }
-        }
+        setImports(importData)
         setOrders(orderData)
+        setParseResults(new Map())
       } catch (err) {
         const message =
           err instanceof Error ? err.message : '오류가 발생했습니다'
@@ -123,12 +164,11 @@ export function useOrderUpload(workSessionId: string) {
         throw new Error('저장 가능한 정상 주문이 없습니다')
       }
 
-      const existingImport =
-        expectedPlatform === 'coupang' ? coupangImport : tossImport
+      const existingImports = imports.filter((i) => i.platform === detected)
 
-      return { file, platform: detected, existingImport, parseResult }
+      return { file, platform: detected, existingImports, parseResult }
     },
-    [coupangImport, tossImport]
+    [imports]
   )
 
   const prepareUploadAutoDetect = useCallback(
@@ -138,7 +178,9 @@ export function useOrderUpload(workSessionId: string) {
       const detected = detectPlatform(workbook)
 
       if (detected === null) {
-        throw new Error('플랫폼을 자동 감지할 수 없습니다. 지원하는 파일 형식인지 확인해주세요.')
+        throw new Error(
+          '플랫폼을 자동 감지할 수 없습니다. 지원하는 파일 형식인지 확인해주세요.'
+        )
       }
 
       const parseResult =
@@ -150,31 +192,89 @@ export function useOrderUpload(workSessionId: string) {
         throw new Error('저장 가능한 정상 주문이 없습니다')
       }
 
-      const existingImport =
-        detected === 'coupang' ? coupangImport : tossImport
+      const existingImports = imports.filter((i) => i.platform === detected)
 
-      return { file, platform: detected, existingImport, parseResult }
+      return { file, platform: detected, existingImports, parseResult }
     },
-    [coupangImport, tossImport]
+    [imports]
   )
+
+  const refreshFromDb = useCallback(async () => {
+    const [importData, orderData] = await Promise.all([
+      getOrderImports(workSessionId),
+      getOrders(workSessionId),
+    ])
+    setImports(importData)
+    setOrders(orderData)
+  }, [workSessionId])
 
   const commitUpload = useCallback(
     async (
       plan: UploadPlan,
-      options?: { replaceExisting?: boolean; appendExisting?: boolean }
+      options?: {
+        replaceExisting?: boolean
+        appendExisting?: boolean
+        addSeparate?: boolean
+        separateLabel?: string
+      }
     ): Promise<void> => {
       try {
-        if (plan.existingImport && (options?.replaceExisting || options?.appendExisting)) {
+        const firstExisting = plan.existingImports[0]
+
+        if (options?.addSeparate) {
+          const existingLabels = plan.existingImports.map((i) => i.label)
+          const newLabel =
+            options.separateLabel ??
+            getNextLabel(plan.platform, existingLabels)
+
+          const imp = await createOrderImport({
+            workSessionId,
+            platform: plan.platform,
+            fileName: plan.file.name,
+            label: newLabel,
+            totalRows: plan.parseResult.meta.totalRows,
+            validCount: plan.parseResult.meta.validRows,
+            invalidCount: plan.parseResult.meta.invalidRows,
+            duplicateCount: plan.parseResult.meta.duplicateRows,
+            invalidRows: plan.parseResult.invalidRows,
+            duplicateRows: plan.parseResult.duplicateRows,
+          })
+
+          try {
+            await saveOrders(workSessionId, imp.id, plan.parseResult.orders)
+          } catch (saveErr) {
+            await deleteOrderImport(imp.id)
+            throw saveErr
+          }
+
+          await refreshFromDb()
+
+          const label = plan.platform === 'coupang' ? '쿠팡' : '토스'
+          toast.success(
+            `${label} 주문 ${plan.parseResult.meta.validRows}건을 별도 파일로 추가했습니다`
+          )
+          return
+        }
+
+        if (firstExisting && (options?.replaceExisting || options?.appendExisting)) {
           const existingOrders = options.appendExisting
-            ? (await getOrders(workSessionId)).filter((o) => o.platform === plan.platform)
+            ? (await getOrders(workSessionId)).filter(
+                (o) => o.platform === plan.platform
+              )
             : []
 
-          await deleteOrderImport(plan.existingImport.id)
+          for (const ei of plan.existingImports) {
+            await deleteOrderImport(ei.id)
+          }
 
           if (options.appendExisting && existingOrders.length > 0) {
-            const existingKeys = new Set(existingOrders.map((o) => o.matchingKey))
+            const existingKeys = new Set(
+              existingOrders.map((o) => o.matchingKey)
+            )
             const newUnique: StandardOrder[] = []
-            const newDuplicates: DuplicateRow[] = [...plan.parseResult.duplicateRows]
+            const newDuplicates: DuplicateRow[] = [
+              ...plan.parseResult.duplicateRows,
+            ]
 
             for (const order of plan.parseResult.orders) {
               if (existingKeys.has(order.matchingKey)) {
@@ -194,17 +294,19 @@ export function useOrderUpload(workSessionId: string) {
             const mergedOrders = [...existingOrders, ...newUnique]
             const mergedInvalid = plan.parseResult.invalidRows
             const totalRows =
-              (plan.existingImport.totalRows) +
-              plan.parseResult.meta.totalRows
+              firstExisting.totalRows + plan.parseResult.meta.totalRows
             const dupCount = newDuplicates.length
 
             const imp = await createOrderImport({
               workSessionId,
               platform: plan.platform,
-              fileName: `${plan.existingImport.fileName} + ${plan.file.name}`,
+              fileName: `${firstExisting.fileName} + ${plan.file.name}`,
+              label: firstExisting.label,
               totalRows,
               validCount: mergedOrders.length,
-              invalidCount: plan.existingImport.invalidCount + plan.parseResult.meta.invalidRows,
+              invalidCount:
+                firstExisting.invalidCount +
+                plan.parseResult.meta.invalidRows,
               duplicateCount: dupCount,
               invalidRows: mergedInvalid,
               duplicateRows: newDuplicates,
@@ -217,40 +319,7 @@ export function useOrderUpload(workSessionId: string) {
               throw saveErr
             }
 
-            if (plan.platform === 'coupang') {
-              setCoupangImport(imp)
-              setCoupangParseResult({
-                orders: mergedOrders,
-                invalidRows: mergedInvalid,
-                duplicateRows: newDuplicates,
-                meta: {
-                  platform: plan.platform,
-                  totalRows,
-                  skippedRows: 0,
-                  validRows: mergedOrders.length,
-                  invalidRows: plan.existingImport.invalidCount + plan.parseResult.meta.invalidRows,
-                  duplicateRows: dupCount,
-                },
-              })
-            } else {
-              setTossImport(imp)
-              setTossParseResult({
-                orders: mergedOrders,
-                invalidRows: mergedInvalid,
-                duplicateRows: newDuplicates,
-                meta: {
-                  platform: plan.platform,
-                  totalRows,
-                  skippedRows: 0,
-                  validRows: mergedOrders.length,
-                  invalidRows: plan.existingImport.invalidCount + plan.parseResult.meta.invalidRows,
-                  duplicateRows: dupCount,
-                },
-              })
-            }
-
-            const freshOrders = await getOrders(workSessionId)
-            setOrders(freshOrders)
+            await refreshFromDb()
 
             const label = plan.platform === 'coupang' ? '쿠팡' : '토스'
             toast.success(
@@ -260,10 +329,13 @@ export function useOrderUpload(workSessionId: string) {
           }
         }
 
+        const label = firstExisting?.label ?? getDefaultLabel(plan.platform)
+
         const imp = await createOrderImport({
           workSessionId,
           platform: plan.platform,
           fileName: plan.file.name,
+          label,
           totalRows: plan.parseResult.meta.totalRows,
           validCount: plan.parseResult.meta.validRows,
           invalidCount: plan.parseResult.meta.invalidRows,
@@ -279,20 +351,11 @@ export function useOrderUpload(workSessionId: string) {
           throw saveErr
         }
 
-        if (plan.platform === 'coupang') {
-          setCoupangImport(imp)
-          setCoupangParseResult(plan.parseResult)
-        } else {
-          setTossImport(imp)
-          setTossParseResult(plan.parseResult)
-        }
+        await refreshFromDb()
 
-        const freshOrders = await getOrders(workSessionId)
-        setOrders(freshOrders)
-
-        const label = plan.platform === 'coupang' ? '쿠팡' : '토스'
+        const platformLabel = plan.platform === 'coupang' ? '쿠팡' : '토스'
         toast.success(
-          `${label} 주문 ${plan.parseResult.meta.validRows}건을 업로드했습니다`
+          `${platformLabel} 주문 ${plan.parseResult.meta.validRows}건을 업로드했습니다`
         )
       } catch (err) {
         const message =
@@ -301,24 +364,18 @@ export function useOrderUpload(workSessionId: string) {
         throw err
       }
     },
-    [workSessionId]
+    [workSessionId, refreshFromDb]
   )
 
   const removeImport = useCallback(
     async (platform: Platform) => {
-      const imp = platform === 'coupang' ? coupangImport : tossImport
-      if (!imp) return
+      const platformImports = imports.filter((i) => i.platform === platform)
+      if (platformImports.length === 0) return
       try {
-        await deleteOrderImport(imp.id)
-        if (platform === 'coupang') {
-          setCoupangImport(null)
-          setCoupangParseResult(null)
-        } else {
-          setTossImport(null)
-          setTossParseResult(null)
+        for (const imp of platformImports) {
+          await deleteOrderImport(imp.id)
         }
-        const freshOrders = await getOrders(workSessionId)
-        setOrders(freshOrders)
+        await refreshFromDb()
         const label = platform === 'coupang' ? '쿠팡' : '토스'
         toast.success(`${label} 주문을 삭제했습니다`)
       } catch (err) {
@@ -327,7 +384,36 @@ export function useOrderUpload(workSessionId: string) {
         toast.error(message)
       }
     },
-    [workSessionId, coupangImport, tossImport]
+    [imports, refreshFromDb]
+  )
+
+  const removeImportById = useCallback(
+    async (importId: string) => {
+      try {
+        await deleteOrderImport(importId)
+        await refreshFromDb()
+        toast.success('주문 파일을 삭제했습니다')
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '오류가 발생했습니다'
+        toast.error(message)
+      }
+    },
+    [refreshFromDb]
+  )
+
+  const renameImportLabel = useCallback(
+    async (importId: string, newLabel: string) => {
+      try {
+        await updateOrderImportLabel(importId, newLabel)
+        await refreshFromDb()
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '오류가 발생했습니다'
+        toast.error(message)
+      }
+    },
+    [refreshFromDb]
   )
 
   const summary = useMemo(() => {
@@ -338,7 +424,9 @@ export function useOrderUpload(workSessionId: string) {
     const cDup = coupangParseResult?.meta.duplicateRows ?? 0
     const tDup = tossParseResult?.meta.duplicateRows ?? 0
 
-    const productNames = new Set(orders.map((o) => `${o.productName}||${o.optionName}`))
+    const productNames = new Set(
+      orders.map((o) => `${o.productName}||${o.optionName}`)
+    )
 
     return {
       valid: cValid + tValid,
@@ -350,8 +438,11 @@ export function useOrderUpload(workSessionId: string) {
   }, [coupangParseResult, tossParseResult, orders])
 
   return {
+    imports,
     coupangImport,
     tossImport,
+    coupangImports,
+    tossImports,
     orders,
     loading,
     parseResult: {
@@ -362,6 +453,8 @@ export function useOrderUpload(workSessionId: string) {
     prepareUploadAutoDetect,
     commitUpload,
     removeImport,
+    removeImportById,
+    renameImportLabel,
     summary,
   }
 }

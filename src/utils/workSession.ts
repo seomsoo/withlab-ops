@@ -49,6 +49,15 @@ export function getSessionProgress(session: DashboardSessionLike): {
   if (session.allocationCount === 0) {
     return { label: '주문 업로드 완료 · 공급처 배정 대기', percentage: 25 }
   }
+  if (session.trackingCount > 0) {
+    if (session.unmatchedTrackingCount > 0) {
+      return { label: '운송장 일부 매칭 · 확인 필요', percentage: 70 }
+    }
+    if (session.matchedTrackingCount > 0) {
+      return { label: '운송장 매칭 완료 · 완료 처리 대기', percentage: 80 }
+    }
+    return { label: '운송장 업로드 완료 · 매칭 확인 필요', percentage: 60 }
+  }
   return { label: '공급처 배정 완료 · 발주서 다운로드 대기', percentage: 50 }
 }
 
@@ -72,6 +81,12 @@ export function getSessionEntryPath(session: DashboardSessionLike): string {
   }
   if (session.allocationCount === 0) {
     return `/orders/${session.id}/allocation`
+  }
+  if (session.trackingCount > 0 && session.matchedTrackingCount > 0) {
+    return `/tracking/${session.id}/download`
+  }
+  if (session.trackingCount > 0) {
+    return `/tracking/${session.id}/match`
   }
   return `/orders/${session.id}/download`
 }

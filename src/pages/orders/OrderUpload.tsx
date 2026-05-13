@@ -13,6 +13,7 @@ import {
   Plus,
   Replace,
   Trash2,
+  FilePlus2,
 } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -68,7 +69,7 @@ export default function OrderUpload() {
         const plan = expectedPlatform
           ? await upload.prepareUpload(file, expectedPlatform)
           : await upload.prepareUploadAutoDetect(file)
-        if (plan.existingImport) {
+        if (plan.existingImports.length > 0) {
           setPendingPlan(plan)
           setConfirmOpen(true)
         } else {
@@ -85,12 +86,14 @@ export default function OrderUpload() {
     [upload]
   )
 
-  const handleConfirmAction = useCallback(async (mode: 'replace' | 'append') => {
+  const handleConfirmAction = useCallback(async (mode: 'replace' | 'append' | 'separate') => {
     if (!pendingPlan) return
     try {
       setUploading(pendingPlan.platform)
       if (mode === 'append') {
         await upload.commitUpload(pendingPlan, { appendExisting: true })
+      } else if (mode === 'separate') {
+        await upload.commitUpload(pendingPlan, { addSeparate: true })
       } else {
         await upload.commitUpload(pendingPlan, { replaceExisting: true })
       }
@@ -219,11 +222,14 @@ export default function OrderUpload() {
         <UnifiedDropZone
           coupangImport={upload.coupangImport}
           tossImport={upload.tossImport}
+          coupangImports={upload.coupangImports}
+          tossImports={upload.tossImports}
           uploading={uploading !== null}
           disabled={isReadonly}
           onFileSelect={(file) => handleFileSelect(file)}
           onPlatformFileSelect={(file, platform) => handleFileSelect(file, platform)}
           onDelete={(platform) => upload.removeImport(platform)}
+          onDeleteById={(id) => upload.removeImportById(id)}
         />
       </div>
 
@@ -398,7 +404,7 @@ export default function OrderUpload() {
         </div>
       </div>
 
-      {/* Replace or Append dialog */}
+      {/* Replace, Append, or Separate dialog */}
       <Dialog open={confirmOpen} onOpenChange={(v) => { if (!uploading) { setConfirmOpen(v); if (!v) setPendingPlan(null) } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -406,7 +412,7 @@ export default function OrderUpload() {
               이미 {pendingPlan?.platform === 'coupang' ? '쿠팡' : '토스'} 주문이 있어요
             </DialogTitle>
             <p className="text-sm text-t-mid mt-1">
-              기존 {pendingPlan?.existingImport?.validCount ?? 0}건 + 새 파일 {pendingPlan?.parseResult.meta.validRows ?? 0}건
+              기존 {pendingPlan?.existingImports.reduce((s, i) => s + i.validCount, 0) ?? 0}건 + 새 파일 {pendingPlan?.parseResult.meta.validRows ?? 0}건
             </p>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-2">
@@ -435,6 +441,21 @@ export default function OrderUpload() {
               </div>
             </button>
             <button
+              className="flex items-start gap-4 rounded-xl border-2 border-line bg-card px-5 py-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/[0.02] disabled:opacity-50"
+              disabled={uploading !== null}
+              onClick={() => handleConfirmAction('separate')}
+            >
+              <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/5">
+                <FilePlus2 size={20} className="text-primary" />
+              </div>
+              <div>
+                <div className="text-sm font-bold text-t-strong">별도 파일</div>
+                <div className="mt-0.5 text-xs text-t-mid leading-relaxed">
+                  다른 계정의 주문으로 추가해요. 운송장 다운로드 시 분리됩니다.
+                </div>
+              </div>
+            </button>
+            <button
               className="flex items-start gap-4 rounded-xl border-2 border-line bg-card px-5 py-4 text-left transition-colors hover:border-red-300 hover:bg-red-50/50 dark:hover:bg-red-950/30 disabled:opacity-50"
               disabled={uploading !== null}
               onClick={() => handleConfirmAction('replace')}
@@ -445,7 +466,12 @@ export default function OrderUpload() {
               <div>
                 <div className="text-sm font-bold text-t-strong">교체하기</div>
                 <div className="mt-0.5 text-xs text-t-mid leading-relaxed">
-                  기존 {pendingPlan?.existingImport?.validCount ?? 0}건을 삭제하고, 새 파일로 대체해요.
+                  기존 {pendingPlan?.existingImports.reduce((s, i) => s + i.validCount, 0) ?? 0}건을 삭제하고, 새 파일로 대체해요.
+                  {(pendingPlan?.existingImports.length ?? 0) > 1 && (
+                    <span className="block mt-0.5 text-red-500 font-medium">
+                      기존 파일 {pendingPlan?.existingImports.length}개가 모두 삭제됩니다.
+                    </span>
+                  )}
                 </div>
               </div>
             </button>
@@ -565,19 +591,25 @@ export default function OrderUpload() {
 function UnifiedDropZone({
   coupangImport,
   tossImport,
+  coupangImports,
+  tossImports,
   uploading,
   disabled,
   onFileSelect,
   onPlatformFileSelect,
   onDelete,
+  onDeleteById,
 }: {
   coupangImport: import('@/types').OrderImport | null
   tossImport: import('@/types').OrderImport | null
+  coupangImports: import('@/types').OrderImport[]
+  tossImports: import('@/types').OrderImport[]
   uploading: boolean
   disabled: boolean
   onFileSelect: (file: File) => void
   onPlatformFileSelect: (file: File, platform: Platform) => void
   onDelete: (platform: Platform) => void
+  onDeleteById: (id: string) => void
 }) {
   const inputId = 'file-unified'
 
@@ -639,22 +671,50 @@ function UnifiedDropZone({
 
           {hasAny && (
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <ImportStatus
-                platform="coupang"
-                label="쿠팡"
-                orderImport={coupangImport}
-                disabled={disabled}
-                onReupload={(file) => onPlatformFileSelect(file, 'coupang')}
-                onDelete={() => onDelete('coupang')}
-              />
-              <ImportStatus
-                platform="toss"
-                label="토스"
-                orderImport={tossImport}
-                disabled={disabled}
-                onReupload={(file) => onPlatformFileSelect(file, 'toss')}
-                onDelete={() => onDelete('toss')}
-              />
+              {coupangImports.length > 0
+                ? coupangImports.map((imp) => (
+                    <ImportStatus
+                      key={imp.id}
+                      platform="coupang"
+                      label={coupangImports.length > 1 ? imp.label : '쿠팡'}
+                      orderImport={imp}
+                      disabled={disabled}
+                      onReupload={(file) => onPlatformFileSelect(file, 'coupang')}
+                      onDelete={() => onDeleteById(imp.id)}
+                    />
+                  ))
+                : (
+                  <ImportStatus
+                    platform="coupang"
+                    label="쿠팡"
+                    orderImport={null}
+                    disabled={disabled}
+                    onReupload={(file) => onPlatformFileSelect(file, 'coupang')}
+                    onDelete={() => onDelete('coupang')}
+                  />
+                )}
+              {tossImports.length > 0
+                ? tossImports.map((imp) => (
+                    <ImportStatus
+                      key={imp.id}
+                      platform="toss"
+                      label={tossImports.length > 1 ? imp.label : '토스'}
+                      orderImport={imp}
+                      disabled={disabled}
+                      onReupload={(file) => onPlatformFileSelect(file, 'toss')}
+                      onDelete={() => onDeleteById(imp.id)}
+                    />
+                  ))
+                : (
+                  <ImportStatus
+                    platform="toss"
+                    label="토스"
+                    orderImport={null}
+                    disabled={disabled}
+                    onReupload={(file) => onPlatformFileSelect(file, 'toss')}
+                    onDelete={() => onDelete('toss')}
+                  />
+                )}
             </div>
           )}
         </>

@@ -26,12 +26,12 @@ export function runMatching(input: MatchingInput): MatchingResult {
     ordersByMatchingKey.set(order.matchingKey.trim(), order)
   }
 
+  const MATCHABLE_STATUSES: Allocation['status'][] = ['pending', 'ordered']
   const allocationByOrderAndSupplier = new Map<string, Allocation>()
   for (const alloc of allocations) {
-    if (alloc.status === 'ordered') {
-      const key = `${alloc.orderId}:${alloc.supplierId}`
-      allocationByOrderAndSupplier.set(key, alloc)
-    }
+    if (!MATCHABLE_STATUSES.includes(alloc.status)) continue
+    const key = `${alloc.orderId}:${alloc.supplierId}`
+    allocationByOrderAndSupplier.set(key, alloc)
   }
 
   const existingMatchedAllocIds = new Set<string>()

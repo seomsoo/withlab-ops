@@ -50,7 +50,7 @@ export default function TrackingDownload() {
   const { exportData, isLoading, courierWarnings, downloadPlatformFile } =
     useTrackingExport(sessionId!)
 
-  const [downloading, setDownloading] = useState<Platform | 'all' | null>(null)
+  const [downloading, setDownloading] = useState<string | null>(null)
   const [completeOpen, setCompleteOpen] = useState(false)
   const [downloadChecked, setDownloadChecked] = useState(false)
   const [completing, setCompleting] = useState(false)
@@ -86,10 +86,11 @@ export default function TrackingDownload() {
   const canOpenDownload = exportData.coupang.count + exportData.toss.count > 0
 
   const handleDownload = useCallback(
-    async (platform: Platform) => {
+    async (platform: Platform, filterLabel?: string) => {
+      const key = filterLabel ? `${platform}:${filterLabel}` : platform
       try {
-        setDownloading(platform)
-        await downloadPlatformFile(platform)
+        setDownloading(key)
+        await downloadPlatformFile(platform, filterLabel)
       } catch {
         // handled in hook
       } finally {
@@ -278,18 +279,22 @@ export default function TrackingDownload() {
             label="쿠팡"
             count={exportData.coupang.count}
             unmatchedCount={exportData.coupang.unmatchedCount}
-            downloading={downloading === 'coupang'}
+            downloading={downloading}
             hasTemplate={templateStatus.coupang}
-            onDownload={() => void handleDownload('coupang')}
+            labels={exportData.coupang.labels}
+            countByLabel={exportData.coupang.countByLabel}
+            onDownload={(filterLabel) => void handleDownload('coupang', filterLabel)}
           />
           <PlatformCard
             platform="toss"
             label="토스"
             count={exportData.toss.count}
             unmatchedCount={exportData.toss.unmatchedCount}
-            downloading={downloading === 'toss'}
+            downloading={downloading}
             hasTemplate={templateStatus.toss}
-            onDownload={() => void handleDownload('toss')}
+            labels={exportData.toss.labels}
+            countByLabel={exportData.toss.countByLabel}
+            onDownload={(filterLabel) => void handleDownload('toss', filterLabel)}
           />
         </div>
 
@@ -371,6 +376,12 @@ export default function TrackingDownload() {
           <DialogHeader>
             <DialogTitle>운송장 처리를 완료할까요?</DialogTitle>
             <DialogDescription>
+              {session.status === 'active' && (
+                <>
+                  발주 완료 없이 운송장 처리를 완료합니다. 미배정 주문은 자동으로 발주 완료 처리됩니다.
+                  <br />
+                </>
+              )}
               완료 후에는 운송장 업로드나 수동 매칭이 불가합니다.
               {totalUnmatched > 0 && (
                 <>
@@ -420,21 +431,27 @@ function PlatformCard({
   unmatchedCount,
   downloading,
   hasTemplate,
+  labels,
+  countByLabel,
   onDownload,
 }: {
   platform: Platform
   label: string
   count: number
   unmatchedCount: number
-  downloading: boolean
+  downloading: string | null
   hasTemplate: boolean
-  onDownload: () => void
+  labels: string[]
+  countByLabel: Record<string, number>
+  onDownload: (filterLabel?: string) => void
 }) {
   const today = new Date()
     .toISOString()
     .slice(0, 10)
     .replace(/-/g, '')
   const fileName = `${label}_운송장_${today}.xlsx`
+  const isDownloading = downloading === platform || downloading?.startsWith(`${platform}:`)
+  const hasMultipleLabels = labels.length > 1
 
   return (
     <div
@@ -460,7 +477,13 @@ function PlatformCard({
           {count}
           <span className="text-sm font-normal text-t-mute">건</span>
         </div>
-        <div className="text-xs text-t-mute">파일에 포함되는 매칭 건수</div>
+        {hasMultipleLabels ? (
+          <div className="text-xs text-t-mute">
+            {labels.map((l) => `${l}: ${countByLabel[l] ?? 0}건`).join(', ')}
+          </div>
+        ) : (
+          <div className="text-xs text-t-mute">파일에 포함되는 매칭 건수</div>
+        )}
         {unmatchedCount > 0 && (
           <div className="mt-1 flex items-center gap-1 text-xs text-amber-600">
             <AlertCircle size={12} />
@@ -476,18 +499,45 @@ function PlatformCard({
         </span>
       </div>
 
-      <Button
-        className="w-full"
-        disabled={count === 0 || downloading || !hasTemplate}
-        onClick={onDownload}
-      >
-        {downloading ? (
-          <LoadingSpinner size="sm" />
-        ) : (
-          <Download size={16} />
+      <div className="space-y-2">
+        <Button
+          className="w-full"
+          disabled={count === 0 || isDownloading || !hasTemplate}
+          onClick={() => onDownload()}
+        >
+          {downloading === platform ? (
+            <LoadingSpinner size="sm" />
+          ) : (
+            <Download size={16} />
+          )}
+          {hasMultipleLabels ? '전체 다운로드' : '엑셀 다운로드'}
+        </Button>
+
+        {hasMultipleLabels && (
+          <div className="flex flex-wrap gap-1.5">
+            {labels.map((l) => {
+              const key = `${platform}:${l}`
+              return (
+                <Button
+                  key={l}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  disabled={!hasTemplate || downloading !== null}
+                  onClick={() => onDownload(l)}
+                >
+                  {downloading === key ? (
+                    <LoadingSpinner size="sm" />
+                  ) : (
+                    <Download size={12} />
+                  )}
+                  {l}
+                </Button>
+              )
+            })}
+          </div>
         )}
-        엑셀 다운로드
-      </Button>
+      </div>
 
       {!hasTemplate && (
         <div className="mt-2 text-center text-xs text-amber-600">

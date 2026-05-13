@@ -26,7 +26,7 @@ export type AllocationWithOrder = Allocation & {
     | 'rawRowNumber'
     | 'orderItemNo'
     | 'orderDate'
-  >
+  > & { orderImportLabel?: string }
   supplierName: string
 }
 
@@ -72,7 +72,8 @@ export async function getAllocations(
         quantity, matching_key,
         order_no, order_item_no, order_date, recipient_name, recipient_phone,
         address, zip_code, delivery_message, buyer_name, buyer_phone,
-        raw_values, raw_row_number
+        raw_values, raw_row_number,
+        order_imports!inner ( label )
       ),
       suppliers!inner ( name )
     `)
@@ -84,6 +85,7 @@ export async function getAllocations(
     const alloc = toAllocation(row as AllocationRow)
     const orderRow = row.orders as Record<string, unknown>
     const supplierRow = row.suppliers as { name: string }
+    const importRow = orderRow.order_imports as { label: string } | null
 
     return {
       ...alloc,
@@ -106,6 +108,7 @@ export async function getAllocations(
         buyerPhone: (orderRow.buyer_phone as string) ?? '',
         rawValues: orderRow.raw_values as unknown[],
         rawRowNumber: orderRow.raw_row_number as number,
+        orderImportLabel: importRow?.label,
       },
       supplierName: supplierRow.name,
     }

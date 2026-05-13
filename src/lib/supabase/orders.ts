@@ -8,6 +8,7 @@ type CreateOrderImportInput = {
   workSessionId: string
   platform: Platform
   fileName: string
+  label: string
   totalRows: number
   validCount: number
   invalidCount: number
@@ -25,6 +26,7 @@ export async function createOrderImport(
       work_session_id: input.workSessionId,
       platform: input.platform,
       file_name: input.fileName,
+      label: input.label,
       total_rows: input.totalRows,
       valid_count: input.validCount,
       invalid_count: input.invalidCount,
@@ -111,4 +113,15 @@ export async function deleteOrderImport(
     .delete()
     .eq('id', orderImportId)
   if (error) throw new Error(`주문 임포트 삭제 실패: ${error.message}`)
+}
+
+export async function updateOrderImportLabel(
+  importId: string,
+  label: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('order_imports')
+    .update({ label })
+    .eq('id', importId)
+  if (error) throw new Error(`라벨 변경 실패: ${error.message}`)
 }

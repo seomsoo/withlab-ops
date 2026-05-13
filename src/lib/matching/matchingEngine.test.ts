@@ -288,4 +288,38 @@ describe('matchingEngine', () => {
 
     expect(result.matched).toHaveLength(2)
   })
+
+  it('pending 상태 배정도 매칭 대상에 포함', () => {
+    const result = runMatching({
+      parsedTrackings: [makeParsedTracking()],
+      orders: [makeOrder()],
+      allocations: [makeAllocation({ status: 'pending' })],
+      existingTrackings: [],
+      sourceSupplierId: 'supplier-1',
+    })
+
+    expect(result.matched).toHaveLength(1)
+    expect(result.matched[0]!.allocationId).toBe('alloc-1')
+  })
+
+  it('pending + ordered 혼합 배정 매칭', () => {
+    const result = runMatching({
+      parsedTrackings: [
+        makeParsedTracking({ rawOrderKey: 'MK001', rawRowNumber: 2 }),
+        makeParsedTracking({ rawOrderKey: 'MK002', rawRowNumber: 3 }),
+      ],
+      orders: [
+        makeOrder({ id: 'order-1', matchingKey: 'MK001' }),
+        makeOrder({ id: 'order-2', matchingKey: 'MK002' }),
+      ],
+      allocations: [
+        makeAllocation({ id: 'alloc-1', orderId: 'order-1', status: 'pending' }),
+        makeAllocation({ id: 'alloc-2', orderId: 'order-2', status: 'ordered' }),
+      ],
+      existingTrackings: [],
+      sourceSupplierId: 'supplier-1',
+    })
+
+    expect(result.matched).toHaveLength(2)
+  })
 })
