@@ -146,6 +146,9 @@ type PurchaseOrderItem = {
   deliveryMessage: string
   buyerName: string
   buyerPhone: string
+
+  orderDate: string              // 주문일시 (발주서 양식에서 사용)
+  nameMappingApplied: boolean
 }
 ```
 
@@ -251,7 +254,7 @@ type SystemField =
   | "platformProductName"      // 플랫폼 원본 상품명 (쿠팡: 노출상품명, 토스: 상품명+옵션명)
   | "quantity" | "recipientName" | "recipientPhone"
   | "zipCode" | "address" | "deliveryMessage"
-  | "buyerName" | "buyerPhone" | "senderAddress" | "empty"
+  | "buyerName" | "buyerPhone" | "orderDate" | "senderAddress" | "empty"
 
 type SupplierTemplate = {
   id: string
@@ -407,6 +410,39 @@ type ParseResult = {
   meta: ParseMeta
 }
 ```
+
+---
+
+## 10. FruitDictionary (과일 사전)
+
+상품명에서 과일 종류/등급/크기/무게를 자동 인식하기 위한 사전.
+스마트 배정(Stage 3) 시 속성 기반 매칭에 사용.
+
+```ts
+type SynonymGroup = {
+  canonical: string            // 대표명 (예: "가정용", "소과")
+  aliases: string[]            // 동의어 (예: ["못난이", "랜덤"])
+}
+
+type FruitDictionary = {
+  id: string
+  category: string             // 과일명 (예: "참외", "사과")
+  keywords: string[]           // 감지 키워드 (예: ["참외", "꿀참외", "성주참외"])
+  gradeSynonyms: SynonymGroup[] // 등급 동의어
+  sizeSynonyms: SynonymGroup[]  // 크기 동의어
+  weightAliases: Record<string, string[]>  // 무게 단위 별칭 (예: { kg: ["키로", "KG"] })
+  weightMapping: Record<string, string>    // 무게 변환 규칙 (예: { "4.5kg": "5kg" })
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+```
+
+### weightMapping (무게 변환)
+- 플랫폼 주문의 무게를 공급처 상품 무게로 변환 (예: 4.5kg → 5kg)
+- **플랫폼 주문에만 적용**, 공급처 상품 무게는 변환하지 않음
+- 과일별로 독립 설정 (사과의 4.5kg→5kg과 참외의 4.5kg→5kg은 별도 규칙)
+- 매핑이 없으면 원본 무게 그대로 사용 (하위호환)
 
 ---
 

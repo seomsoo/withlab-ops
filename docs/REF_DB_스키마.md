@@ -19,6 +19,7 @@ work_sessions
     └── tracking_imports ──────────────────┘
 
 platform_templates (독립)
+fruit_dictionary (독립)               ← Phase 8
 ```
 
 ## SQL 마이그레이션
@@ -390,6 +391,26 @@ alter table allocations
   add column supplier_price integer;
 
 -- ==========================================
+-- 15. fruit_dictionary (Phase 8 — 과일 사전)
+-- ==========================================
+create table fruit_dictionary (
+  id uuid primary key default gen_random_uuid(),
+  category text not null,
+  keywords text[] not null default '{}',
+  grade_synonyms jsonb not null default '{}',
+  size_synonyms jsonb not null default '{}',
+  weight_aliases jsonb not null default '{}',
+  weight_mapping jsonb not null default '{}',
+  is_active boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+-- weight_mapping: 플랫폼 주문 무게를 공급처 상품 무게로 변환하는 규칙
+-- 예: { "4.5kg": "5kg", "4kg": "5kg" }
+-- 스마트배정 시 플랫폼 주문에만 적용, 공급처 상품 무게는 변환하지 않음
+
+-- ==========================================
 -- updated_at 자동 갱신 트리거
 -- ==========================================
 create or replace function set_updated_at()
@@ -412,6 +433,8 @@ create trigger trg_pt_updated before update on platform_templates
   for each row execute function set_updated_at();
 create trigger trg_spt_updated before update on supplier_product_templates
   for each row execute function set_updated_at();
+create trigger trg_fd_updated before update on fruit_dictionary
+  for each row execute function set_updated_at();
 
 -- ==========================================
 -- RLS (Row Level Security)
@@ -431,6 +454,7 @@ alter table supplier_templates enable row level security;
 alter table platform_templates enable row level security;
 alter table supplier_product_templates enable row level security;
 alter table supplier_products enable row level security;
+alter table fruit_dictionary enable row level security;
 
 do $$
 declare
@@ -441,7 +465,8 @@ begin
       'work_sessions', 'order_imports', 'orders', 'allocations',
       'tracking_imports', 'trackings', 'suppliers', 'product_mappings',
       'name_mappings', 'courier_mappings', 'supplier_templates', 'platform_templates',
-      'supplier_product_templates', 'supplier_products'
+      'supplier_product_templates', 'supplier_products',
+      'fruit_dictionary'
     ])
   loop
     execute format(
