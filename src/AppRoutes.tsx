@@ -11,6 +11,7 @@ const Login = lazy(() => import('@/pages/Login'))
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const WorkSessionSelector = lazy(() => import('@/pages/orders/WorkSessionSelector'))
 const OrderUpload = lazy(() => import('@/pages/orders/OrderUpload'))
+const ItemReview = lazy(() => import('@/pages/orders/ItemReview'))
 const SupplierAllocation = lazy(() => import('@/pages/orders/SupplierAllocation'))
 const OrderDownload = lazy(() => import('@/pages/orders/OrderDownload'))
 const TrackingSessionSelector = lazy(() => import('@/pages/tracking/TrackingSessionSelector'))
@@ -48,6 +49,10 @@ export function AppRoutes() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/orders" element={<WorkSessionSelector />} />
             <Route path="/orders/:sessionId/upload" element={<OrderUpload />} />
+            <Route
+              path="/orders/:sessionId/review"
+              element={<ItemReview />}
+            />
             <Route
               path="/orders/:sessionId/allocation"
               element={<SupplierAllocation />}

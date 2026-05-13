@@ -8,6 +8,7 @@ import {
   updateGroupSupplierProduct,
   replaceAllocationsForGroup,
   getUnallocatedOrders,
+  deleteAllAllocations,
 } from '@/lib/supabase/allocations'
 import { getProductMappings, switchDefaultSupplier, createAutoProductMapping } from '@/lib/supabase/productMappings'
 import { getNameMappings } from '@/lib/supabase/nameMappings'
@@ -70,7 +71,6 @@ export function useAllocation(workSessionId: string) {
   const fetchAllocations = useCallback(async () => {
     if (!workSessionId) return
     try {
-      setLoading(true)
       const data = await getAllocations(workSessionId)
       setAllocations(data)
       const unalloc = await getUnallocatedOrders(workSessionId)
@@ -79,8 +79,6 @@ export function useAllocation(workSessionId: string) {
       toast.error(
         err instanceof Error ? err.message : '배정 데이터 조회 실패'
       )
-    } finally {
-      setLoading(false)
     }
   }, [workSessionId])
 
@@ -129,7 +127,7 @@ export function useAllocation(workSessionId: string) {
     return () => { alive = false }
   }, [workSessionId])
 
-  const runAutoAllocation = useCallback(async () => {
+  const runAutoAllocation = useCallback(async (keywordOverrides?: Map<string, string>) => {
     if (!workSessionId) return
     try {
       setRunning(true)
@@ -155,6 +153,7 @@ export function useAllocation(workSessionId: string) {
         suppliers,
         supplierProducts,
         fruitDictionary,
+        keywordOverrides,
       })
 
       if (result.allocated.length > 0) {
@@ -183,6 +182,53 @@ export function useAllocation(workSessionId: string) {
     }
   }, [workSessionId, fetchAllocations])
 
+  const resetAndRerun = useCallback(async (keywordOverrides?: Map<string, string>) => {
+    if (!workSessionId) return
+    try {
+      setRunning(true)
+      await deleteAllAllocations(workSessionId)
+      setAllocations([])
+      setSuggested([])
+
+      const [orders, productMappingsRaw, nameMappingsRaw, suppliers, supplierProducts, fruitDictionary] =
+        await Promise.all([
+          getOrders(workSessionId),
+          getProductMappings(),
+          getNameMappings(),
+          getAllSuppliers(),
+          getAllSupplierProducts(),
+          getFruitDictionaries(),
+        ])
+
+      if (orders.length === 0) {
+        toast.info('업로드된 주문이 없습니다')
+        return
+      }
+
+      const result = autoAllocate({
+        orders,
+        productMappings: productMappingsRaw,
+        nameMappings: nameMappingsRaw,
+        suppliers,
+        supplierProducts,
+        fruitDictionary,
+        keywordOverrides,
+      })
+
+      if (result.allocated.length > 0) {
+        await createAllocations(workSessionId, result.allocated)
+      }
+
+      await fetchAllocations()
+      setSuggested(result.suggested)
+      toast.success('재배정 완료')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '재배정 실패')
+    } finally {
+      setRunning(false)
+    }
+  }, [workSessionId, fetchAllocations])
+
   const handleUpdateGroupSupplier = useCallback(
     async (
       orderIds: string[],
@@ -204,6 +250,7 @@ export function useAllocation(workSessionId: string) {
 
         let resolvedProductName = nameResult.supplierProductName
         let resolvedProductCode = nameResult.supplierProductCode
+        let resolvedPrice: number | undefined
         if (!nameResult.applied) {
           const resolved = await resolveSupplierProductName(
             platform, productName, optionName, newSupplierId
@@ -211,6 +258,7 @@ export function useAllocation(workSessionId: string) {
           if (resolved) {
             resolvedProductName = resolved.productName
             resolvedProductCode = resolved.productCode || undefined
+            resolvedPrice = resolved.price ?? undefined
           }
         }
 
@@ -220,6 +268,7 @@ export function useAllocation(workSessionId: string) {
           newSupplierId,
           supplierProductName: resolvedProductName,
           supplierProductCode: resolvedProductCode,
+          supplierPrice: resolvedPrice,
           isTemporaryOverride,
           nameMappingApplied: nameResult.applied,
         })
@@ -265,6 +314,7 @@ export function useAllocation(workSessionId: string) {
 
           let resolvedProductName = nameResult.supplierProductName
           let resolvedProductCode = nameResult.supplierProductCode
+          let resolvedPrice: number | undefined
           if (!nameResult.applied) {
             const resolved = await resolveSupplierProductName(
               order.platform, order.productName, order.optionName, supplierId
@@ -272,6 +322,7 @@ export function useAllocation(workSessionId: string) {
             if (resolved) {
               resolvedProductName = resolved.productName
               resolvedProductCode = resolved.productCode || undefined
+              resolvedPrice = resolved.price ?? undefined
             }
           }
 
@@ -284,6 +335,7 @@ export function useAllocation(workSessionId: string) {
             isTemporaryOverride: false,
             nameMappingApplied: nameResult.applied,
             smartAllocationApplied: false,
+            supplierPrice: resolvedPrice,
           })
 
           try {
@@ -369,7 +421,7 @@ export function useAllocation(workSessionId: string) {
         const nameMappingsAll = await getNameMappings()
 
         const nameCache = new Map<string, ReturnType<typeof findNameMapping>>()
-        const resolvedCache = new Map<string, { productName: string; productCode: string | undefined }>()
+        const resolvedCache = new Map<string, { productName: string; productCode: string | undefined; price: number | undefined }>()
         for (const dist of distributions) {
           if (!nameCache.has(dist.supplierId)) {
             const nr = findNameMapping(platform, productName, optionName, dist.supplierId, nameMappingsAll)
@@ -382,6 +434,7 @@ export function useAllocation(workSessionId: string) {
                 resolvedCache.set(dist.supplierId, {
                   productName: resolved.productName,
                   productCode: resolved.productCode || undefined,
+                  price: resolved.price ?? undefined,
                 })
               }
             }
@@ -406,6 +459,7 @@ export function useAllocation(workSessionId: string) {
               isTemporaryOverride: false,
               nameMappingApplied: nameResult.applied,
               smartAllocationApplied: false,
+              supplierPrice: resolved?.price,
             })
             idx++
           }
@@ -458,6 +512,7 @@ export function useAllocation(workSessionId: string) {
     loading,
     running,
     runAutoAllocation,
+    resetAndRerun,
     updateGroupSupplier: handleUpdateGroupSupplier,
     assignUnmatched,
     applySuggested,

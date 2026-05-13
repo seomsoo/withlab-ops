@@ -266,6 +266,7 @@ export const workSessionSchema = z.object({
   createdAt: z.string(),
   createdBy: uuidString.optional(),
   completedAt: z.string().optional(),
+  orderedAt: z.string().optional(),
 })
 
 export const invalidRowSchema = z.object({
@@ -332,6 +333,7 @@ export type WorkSessionRow = {
   created_at: string
   created_by: string | null
   completed_at: string | null
+  ordered_at: string | null
 }
 
 export type OrderRow = {
@@ -551,6 +553,7 @@ export function toWorkSession(row: WorkSessionRow) {
     createdAt: row.created_at,
     createdBy: row.created_by ?? undefined,
     completedAt: row.completed_at ?? undefined,
+    orderedAt: row.ordered_at ?? undefined,
   }
 }
 

@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useState, useMemo, useEffect, useCallback, useRef, memo } from 'react'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
   AlertCircle,
@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Upload,
   RefreshCw,
+  RotateCcw,
   Info,
 } from 'lucide-react'
 
@@ -95,6 +96,7 @@ type AllocationGroup = {
 export default function SupplierAllocation() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { session, loading: sessionLoading } = useWorkSession(sessionId)
   const {
     allocations,
@@ -103,6 +105,7 @@ export default function SupplierAllocation() {
     loading: allocLoading,
     running,
     runAutoAllocation,
+    resetAndRerun,
     updateGroupSupplier,
     assignUnmatched,
     applySuggested,
@@ -142,6 +145,17 @@ export default function SupplierAllocation() {
   const isReadonly = session?.status !== 'active'
   const autoAllocRan = useRef(false)
 
+  const keywordOverrides = useMemo(() => {
+    const raw = searchParams.get('overrides')
+    if (!raw) return undefined
+    try {
+      const obj = JSON.parse(raw) as Record<string, string>
+      return new Map(Object.entries(obj))
+    } catch {
+      return undefined
+    }
+  }, [searchParams])
+
   useEffect(() => {
     if (
       !allocLoading &&
@@ -152,9 +166,9 @@ export default function SupplierAllocation() {
       !autoAllocRan.current
     ) {
       autoAllocRan.current = true
-      runAutoAllocation()
+      runAutoAllocation(keywordOverrides)
     }
-  }, [allocLoading, allocations.length, unallocatedOrders.length, running, isReadonly, runAutoAllocation])
+  }, [allocLoading, allocations.length, unallocatedOrders.length, running, isReadonly, runAutoAllocation, keywordOverrides])
 
   const suggestedMap = useMemo(() => {
     const map = new Map<string, SuggestedAllocation>()
@@ -168,7 +182,7 @@ export default function SupplierAllocation() {
     const groupMap = new Map<string, AllocationGroup>()
 
     for (const alloc of allocations) {
-      const key = `${alloc.order.productName}||${alloc.order.optionName}`
+      const key = `${alloc.order.productName}||${alloc.order.optionName}||${alloc.supplierId}`
       const existing = groupMap.get(key)
       if (existing) {
         existing.orderCount++
@@ -200,7 +214,7 @@ export default function SupplierAllocation() {
     }
 
     for (const order of unallocatedOrders) {
-      const key = `${order.productName}||${order.optionName}`
+      const key = `${order.productName}||${order.optionName}||unalloc`
       const sug = suggestedMap.get(order.id)
       const existing = groupMap.get(key)
       if (existing) {
@@ -251,14 +265,14 @@ export default function SupplierAllocation() {
     return groups.filter((g) => g.status === filter)
   }, [groups, filter])
 
-  const toggleGroup = (key: string) => {
+  const toggleGroup = useCallback((key: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
     })
-  }
+  }, [])
 
   async function handleRefreshProducts(supplierId: string) {
     const input = document.createElement('input')
@@ -358,7 +372,7 @@ export default function SupplierAllocation() {
       <OrderTabs
         sessionId={sessionId}
         activeTab="assign"
-        completedTabs={['upload']}
+        completedTabs={isReadonly ? ['upload', 'review', 'assign', 'download'] : ['upload', 'review']}
       />
 
       {isReadonly && (
@@ -431,6 +445,27 @@ export default function SupplierAllocation() {
               >
                 미분류만 보기
               </button>
+            </div>
+          )}
+
+          {/* 재배정 */}
+          {!isReadonly && allocations.length > 0 && (
+            <div className="mt-4 flex items-center justify-between rounded-radius-md border border-line bg-bg-subtle px-4 py-2.5">
+              <span className="text-xs text-t-mute">
+                배정 결과가 올바르지 않다면 초기화 후 다시 자동 배정할 수 있습니다
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                disabled={running}
+                onClick={() => {
+                  void resetAndRerun(keywordOverrides)
+                }}
+              >
+                <RotateCcw size={12} />
+                {running ? '배정 중...' : '재배정'}
+              </Button>
             </div>
           )}
 
@@ -562,16 +597,14 @@ export default function SupplierAllocation() {
                 key={group.key}
                 group={group}
                 expanded={expandedGroups.has(group.key)}
-                onToggle={() => toggleGroup(group.key)}
+                onToggle={toggleGroup}
                 suppliers={suppliers}
                 supplierProducts={allSp}
                 fruitDictionary={fruitDictionary}
                 suggestedMap={suggestedMap}
-                onSupplierChange={(suppId, mode) =>
-                  handleSupplierChange(group, suppId, mode)
-                }
+                onGroupSupplierChange={handleSupplierChange}
                 onChangeSupplierProduct={changeSupplierProduct}
-                onDistribute={() => setDistributeDialog(group)}
+                onDistribute={setDistributeDialog}
                 onApplySuggested={applySuggested}
                 isReadonly={isReadonly}
               />
@@ -949,7 +982,31 @@ function SupplierPickerPopover({
   )
 }
 
-function GroupRow({
+type GroupRowProps = {
+  group: AllocationGroup
+  expanded: boolean
+  onToggle: (key: string) => void
+  suppliers: Supplier[]
+  supplierProducts: SupplierProduct[]
+  fruitDictionary: import('@/types').FruitDictionary[]
+  suggestedMap: Map<string, SuggestedAllocation>
+  onGroupSupplierChange: (
+    group: AllocationGroup,
+    supplierId: string,
+    mode: 'today' | 'default'
+  ) => Promise<void>
+  onChangeSupplierProduct: (
+    orderIds: string[],
+    supplierProductName: string,
+    supplierProductCode?: string,
+    supplierPrice?: number
+  ) => Promise<void>
+  onDistribute: (group: AllocationGroup) => void
+  onApplySuggested: (orderIds: string[]) => Promise<void>
+  isReadonly: boolean
+}
+
+const GroupRow = memo(function GroupRow({
   group,
   expanded,
   onToggle,
@@ -957,32 +1014,29 @@ function GroupRow({
   supplierProducts,
   fruitDictionary,
   suggestedMap,
-  onSupplierChange,
+  onGroupSupplierChange,
   onChangeSupplierProduct,
   onDistribute,
   onApplySuggested,
   isReadonly,
-}: {
-  group: AllocationGroup
-  expanded: boolean
-  onToggle: () => void
-  suppliers: Supplier[]
-  supplierProducts: SupplierProduct[]
-  fruitDictionary: import('@/types').FruitDictionary[]
-  suggestedMap: Map<string, SuggestedAllocation>
-  onSupplierChange: (supplierId: string, mode: 'today' | 'default') => void
-  onChangeSupplierProduct: (
-    orderIds: string[],
-    supplierProductName: string,
-    supplierProductCode?: string,
-    supplierPrice?: number
-  ) => Promise<void>
-  onDistribute: () => void
-  onApplySuggested: (orderIds: string[]) => Promise<void>
-  isReadonly: boolean
-}) {
+}: GroupRowProps) {
   const isSuggested = group.status === 'suggested'
   const topCandidate = group.topCandidate
+
+  const handleToggle = useCallback(() => {
+    onToggle(group.key)
+  }, [onToggle, group.key])
+
+  const handleSupplierChange = useCallback(
+    (supplierId: string, mode: 'today' | 'default') => {
+      void onGroupSupplierChange(group, supplierId, mode)
+    },
+    [onGroupSupplierChange, group]
+  )
+
+  const handleDistribute = useCallback(() => {
+    onDistribute(group)
+  }, [onDistribute, group])
 
   const matchCandidates = useMemo(() => {
     if (!isSuggested) return undefined
@@ -1000,7 +1054,7 @@ function GroupRow({
     >
       <div
         className="flex cursor-pointer items-center gap-3 px-4 py-3"
-        onClick={onToggle}
+        onClick={handleToggle}
       >
         <ChevronRight
           size={16}
@@ -1020,7 +1074,7 @@ function GroupRow({
               </span>
             )}
           </div>
-          {group.supplierProductName && group.supplierProductName !== group.productName && (
+          {group.supplierId && (
             <div
               className="mt-0.5 flex items-center gap-1 text-xs"
               onClick={(e) => e.stopPropagation()}
@@ -1119,7 +1173,7 @@ function GroupRow({
                 suppliers={suppliers}
                 supplierProducts={supplierProducts}
                 matchCandidates={matchCandidates}
-                onSelect={onSupplierChange}
+                onSelect={handleSupplierChange}
               />
             </div>
           ) : (
@@ -1128,7 +1182,7 @@ function GroupRow({
                 group={group}
                 suppliers={suppliers}
                 supplierProducts={supplierProducts}
-                onSelect={onSupplierChange}
+                onSelect={handleSupplierChange}
               />
             </div>
           )}
@@ -1137,7 +1191,7 @@ function GroupRow({
               variant="outline"
               size="sm"
               className="text-xs"
-              onClick={onDistribute}
+              onClick={handleDistribute}
             >
               분배
             </Button>
@@ -1194,7 +1248,29 @@ function GroupRow({
       )}
     </div>
   )
-}
+}, (prev, next) => {
+  const pg = prev.group
+  const ng = next.group
+  return (
+    pg.key === ng.key &&
+    pg.supplierId === ng.supplierId &&
+    pg.supplierName === ng.supplierName &&
+    pg.supplierProductName === ng.supplierProductName &&
+    pg.supplierProductCode === ng.supplierProductCode &&
+    pg.supplierPrice === ng.supplierPrice &&
+    pg.status === ng.status &&
+    pg.orderCount === ng.orderCount &&
+    pg.totalQuantity === ng.totalQuantity &&
+    pg.smartAllocationApplied === ng.smartAllocationApplied &&
+    pg.items.length === ng.items.length &&
+    prev.expanded === next.expanded &&
+    prev.suppliers === next.suppliers &&
+    prev.supplierProducts === next.supplierProducts &&
+    prev.fruitDictionary === next.fruitDictionary &&
+    prev.suggestedMap === next.suggestedMap &&
+    prev.isReadonly === next.isReadonly
+  )
+})
 
 function CandidateCards({
   group,

@@ -20,6 +20,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { CardGridSkeleton } from '@/components/ui/PageSkeleton'
 import { PlatformBadge } from '@/components/PlatformBadge'
+import { OrderTabs } from '@/components/OrderTabs'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -41,8 +42,9 @@ const ITEMS_PER_PAGE = 20
 
 const TAB_ITEMS = [
   { id: 'upload', label: '주문 업로드', step: '1' },
-  { id: 'assign', label: '공급처 배정', step: '2' },
-  { id: 'download', label: '발주서 다운로드', step: '3' },
+  { id: 'review', label: '품목 검토', step: '2' },
+  { id: 'assign', label: '공급처 배정', step: '3' },
+  { id: 'download', label: '발주서 다운로드', step: '4' },
 ] as const
 
 export default function OrderUpload() {
@@ -170,42 +172,41 @@ export default function OrderUpload() {
           </span>
         </div>
 
-        <div className="flex gap-1 rounded-radius-md border border-line bg-card p-1.5 shadow-level-1">
-          {TAB_ITEMS.map((tab, i) => {
-            const active = tab.id === 'upload'
-            return (
-              <button
-                key={tab.id}
-                className={cn(
-                  'flex flex-1 items-center gap-2.5 rounded-[8px] px-3.5 py-2.5 text-sm font-semibold transition-colors',
-                  active
-                    ? 'bg-primary-50 text-primary'
-                    : 'text-t-mute cursor-not-allowed'
-                )}
-                disabled={!active}
-                onClick={() => {
-                  if (tab.id === 'assign' && sessionId) {
-                    navigate(`/orders/${sessionId}/allocation`)
-                  }
-                }}
-              >
-                <span
+        {isReadonly && sessionId ? (
+          <OrderTabs
+            sessionId={sessionId}
+            activeTab="upload"
+            completedTabs={['upload', 'review', 'assign', 'download']}
+          />
+        ) : (
+          <div className="flex gap-1 rounded-radius-md border border-line bg-card p-1.5 shadow-level-1">
+            {TAB_ITEMS.map((tab) => {
+              const active = tab.id === 'upload'
+              return (
+                <button
+                  key={tab.id}
                   className={cn(
-                    'grid h-[22px] w-[22px] place-items-center rounded-full text-xs font-bold',
-                    active ? 'bg-primary text-white' : 'bg-gray-200 text-t-mute'
+                    'flex flex-1 items-center gap-2.5 rounded-[8px] px-3.5 py-2.5 text-sm font-semibold transition-colors',
+                    active
+                      ? 'bg-primary-50 text-primary'
+                      : 'text-t-mute cursor-not-allowed'
                   )}
+                  disabled={!active}
                 >
-                  {i > 0 && i < TAB_ITEMS.indexOf(TAB_ITEMS.find((t) => t.id === 'upload')!) ? (
-                    <Check size={14} />
-                  ) : (
-                    tab.step
-                  )}
-                </span>
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
+                  <span
+                    className={cn(
+                      'grid h-[22px] w-[22px] place-items-center rounded-full text-xs font-bold',
+                      active ? 'bg-primary text-white' : 'bg-gray-200 text-t-mute'
+                    )}
+                  >
+                    {tab.step}
+                  </span>
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Readonly banner */}
@@ -394,11 +395,11 @@ export default function OrderUpload() {
           <Button
             disabled={upload.summary.valid === 0}
             onClick={() => {
-              if (sessionId) navigate(`/orders/${sessionId}/allocation`)
+              if (sessionId) navigate(`/orders/${sessionId}/review`)
             }}
             className="gap-1.5"
           >
-            다음: 공급처 배정
+            다음: 품목 검토
             <ChevronRight size={16} />
           </Button>
         </div>

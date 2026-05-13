@@ -288,6 +288,7 @@ export type WorkSession = {
   createdAt: string
   createdBy?: string
   completedAt?: string
+  orderedAt?: string
 }
 
 export type OrderImport = {
@@ -445,4 +446,28 @@ export type FruitDictionary = {
   isActive: boolean
   createdAt: string
   updatedAt: string
+}
+
+export type RecommendReason =
+  | 'default'
+  | 'yesterday'
+  | 'frequency'
+  | 'lowest_price'
+
+export type SupplierRecommendation = {
+  supplierId: string
+  supplierName: string
+  reason: RecommendReason
+  detail?: string
+}
+
+export type ItemSummary = {
+  keyword: string
+  orderCount: number
+  totalQuantity: number
+  platforms: Platform[]
+  orderIds: string[]
+  recommendations: SupplierRecommendation[]
+  selectedSupplierId: string | null
+  saveAsDefault: boolean
 }

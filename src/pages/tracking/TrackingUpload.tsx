@@ -180,26 +180,28 @@ export default function TrackingUpload() {
           </div>
         )}
 
-        {/* 공급처 업로드 상태 스트립 */}
+        {/* 공급처 업로드 현황 */}
         {trackingImports.length > 0 && (
-          <div className="rounded-radius-md border border-line bg-card p-4 shadow-level-1">
-            <div className="mb-2 text-xs font-semibold text-t-mute">업로드된 공급처</div>
-            <div className="flex flex-wrap gap-2">
+          <div className="rounded-radius-md border border-line bg-card p-5 shadow-level-1">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-t-primary">업로드 현황</h3>
+              <span className="text-xs text-t-mute">
+                {trackingImports.length}개 공급처 · 총 {trackingImports.reduce((s, i) => s + i.validCount, 0)}건
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {trackingImports.map((imp) => {
                 const supplier = activeSuppliers.find((s) => s.id === imp.sourceSupplierId)
+                const uploadTime = new Date(imp.uploadedAt)
+                const timeStr = uploadTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
                 return (
                   <div
                     key={imp.id}
-                    className="flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs"
+                    className="group relative rounded-radius-md border border-line bg-bg-subtle p-4 transition-colors hover:border-green-200 hover:bg-green-50/50"
                   >
-                    <Check size={12} className="text-green-600" />
-                    <span className="font-medium text-green-800">
-                      {supplier?.name ?? '알 수 없음'}
-                    </span>
-                    <span className="text-green-600">{imp.validCount}건</span>
                     {!isCompleted && (
                       <button
-                        className="ml-1 rounded-full p-0.5 text-red-400 transition-colors hover:bg-red-100 hover:text-red-600"
+                        className="absolute right-3 top-3 rounded-md p-1 text-t-faint opacity-0 transition-all hover:bg-red-100 hover:text-status-error group-hover:opacity-100"
                         title="삭제"
                         onClick={() =>
                           setConfirmDelete({
@@ -209,9 +211,34 @@ export default function TrackingUpload() {
                           })
                         }
                       >
-                        <Trash2 size={12} />
+                        <Trash2 size={14} />
                       </button>
                     )}
+                    <div className="flex items-center gap-2">
+                      <div className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full bg-green-100">
+                        <Check size={14} className="text-green-600" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-t-primary">
+                          {supplier?.name ?? '알 수 없음'}
+                        </p>
+                        <p className="truncate text-[11px] text-t-mute" title={imp.fileName}>
+                          {imp.fileName}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center gap-3 text-xs text-t-secondary">
+                      <span className="font-medium">{imp.validCount}건</span>
+                      {imp.invalidCount > 0 && (
+                        <span className="text-status-error">오류 {imp.invalidCount}</span>
+                      )}
+                      {imp.detectedCourier && (
+                        <span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-t-mute">
+                          {imp.detectedCourier}
+                        </span>
+                      )}
+                      <span className="ml-auto text-t-faint">{timeStr}</span>
+                    </div>
                   </div>
                 )
               })}

@@ -91,7 +91,7 @@ export async function deleteProductMapping(id: string): Promise<void> {
 }
 
 export async function switchDefaultSupplier(input: {
-  platform: Platform
+  platform: Platform | 'common'
   productName: string
   optionName: string
   newSupplierId: string

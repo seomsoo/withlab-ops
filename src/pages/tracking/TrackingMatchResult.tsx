@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog'
 import { TrackingTabs } from '@/components/TrackingTabs'
+import { SupplierProgressChips } from '@/components/SupplierProgressChips'
 import {
   Dialog,
   DialogContent,
@@ -278,7 +279,7 @@ export default function TrackingMatchResult() {
         />
 
         {unmappedCourierCount > 0 && (
-          <div className="flex items-center gap-2 rounded-radius-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <div className="flex items-center gap-2 rounded-radius-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
             <AlertTriangle size={16} className="shrink-0" />
             <span>
               택배사 매핑이 되지 않은 운송장이 <strong>{unmappedCourierCount}건</strong> 있습니다.{' '}
@@ -290,24 +291,7 @@ export default function TrackingMatchResult() {
           </div>
         )}
 
-        {supplierProgress.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {supplierProgress.map((sp) => (
-              <div
-                key={sp.supplierId}
-                className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-xs"
-              >
-                <span className={sp.uploadedCount > 0 ? 'text-green-600' : 'text-t-mute'}>
-                  {sp.uploadedCount > 0 ? '✓' : '○'}
-                </span>
-                <span className="font-medium text-t-strong">{sp.supplierName}</span>
-                <span className="text-t-mute">
-                  {sp.matchedCount}/{sp.totalAllocations}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        <SupplierProgressChips progress={supplierProgress} />
 
         {/* 요약 카드 */}
         <div className="grid grid-cols-4 gap-3">
@@ -412,8 +396,8 @@ export default function TrackingMatchResult() {
               ) : (
                 displayedTrackings.map((t) => (
                   <TableRow key={t.id} className={cn(
-                    t.status === 'unmatched' && 'bg-amber-50/30',
-                    t.status === 'invalid' && 'bg-red-50/30',
+                    t.status === 'unmatched' && 'bg-amber-50/30 dark:bg-amber-950/20',
+                    t.status === 'invalid' && 'bg-red-50/30 dark:bg-red-950/20',
                     t.ignored && 'opacity-40'
                   )}>
                     <TableCell>
@@ -588,32 +572,38 @@ function StatCard({
   hint: string
   icon: React.ReactNode
 }) {
-  const colors: Record<string, string> = {
-    primary: 'border-blue-200 bg-blue-50 text-blue-700',
-    warning: 'border-amber-200 bg-amber-50 text-amber-700',
-    amber: 'border-orange-200 bg-orange-50 text-orange-700',
-    error: 'border-red-200 bg-red-50 text-red-700',
+  const iconColors: Record<string, string> = {
+    primary: 'text-primary',
+    warning: 'text-amber-500 dark:text-amber-400',
+    amber: 'text-orange-500 dark:text-orange-400',
+    error: 'text-red-500 dark:text-red-400',
+  }
+  const valueColors: Record<string, string> = {
+    primary: 'text-primary',
+    warning: 'text-amber-600 dark:text-amber-300',
+    amber: 'text-orange-600 dark:text-orange-300',
+    error: 'text-red-600 dark:text-red-300',
   }
   return (
-    <div className={cn('rounded-radius-md border p-4', colors[tone])}>
-      <div className="flex items-center gap-2 text-xs font-medium opacity-80">
-        {icon} {label}
+    <div className="rounded-radius-md border border-line bg-card p-4">
+      <div className={cn('flex items-center gap-2 text-xs font-medium', iconColors[tone])}>
+        {icon} <span className="text-t-mute">{label}</span>
       </div>
-      <div className="mt-1 text-2xl font-bold">
+      <div className={cn('mt-1 text-2xl font-bold', valueColors[tone])}>
         {value.toLocaleString()}
-        <span className="text-sm font-normal opacity-60">건</span>
+        <span className="text-sm font-normal text-t-mute">건</span>
       </div>
-      <div className="mt-0.5 text-xs opacity-60">{hint}</div>
+      <div className="mt-0.5 text-xs text-t-faint">{hint}</div>
     </div>
   )
 }
 
 function StatusPill({ status }: { status: TrackingStatus }) {
   const config: Record<TrackingStatus, { label: string; className: string }> = {
-    matched: { label: '매칭됨', className: 'bg-green-100 text-green-700' },
-    unmatched: { label: '미매칭', className: 'bg-amber-100 text-amber-700' },
-    duplicated: { label: '중복', className: 'bg-orange-100 text-orange-700' },
-    invalid: { label: '오류', className: 'bg-red-100 text-red-700' },
+    matched: { label: '매칭됨', className: 'border border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-300' },
+    unmatched: { label: '미매칭', className: 'border border-amber-200 text-amber-700 dark:border-amber-800 dark:text-amber-300' },
+    duplicated: { label: '중복', className: 'border border-orange-200 text-orange-700 dark:border-orange-800 dark:text-orange-300' },
+    invalid: { label: '오류', className: 'border border-red-200 text-red-700 dark:border-red-800 dark:text-red-300' },
   }
   const c = config[status]
   return (

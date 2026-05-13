@@ -164,7 +164,7 @@ export default function OrderDownload() {
       <OrderTabs
         sessionId={sessionId}
         activeTab="download"
-        completedTabs={['upload', 'assign']}
+        completedTabs={isReadonly ? ['upload', 'review', 'assign', 'download'] : ['upload', 'review', 'assign']}
       />
 
       {isOrdered && (
@@ -208,10 +208,6 @@ export default function OrderDownload() {
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             {purchaseOrders.map((order) => {
               const hasTemplate = templateMap.has(order.supplierId)
-              const missingMappingCount = order.items.filter(
-                (i) => !i.nameMappingApplied
-              ).length
-
               return (
                 <div
                   key={order.supplierId}
@@ -229,9 +225,9 @@ export default function OrderDownload() {
                         </span>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-t-mute">
-                        <span>{order.items.length}건</span>
+                        <span>주문 {order.items.length}건</span>
                         <span>
-                          {order.items.reduce((s, i) => s + i.quantity, 0)}개
+                          수량 {order.items.reduce((s, i) => s + i.quantity, 0)}개
                         </span>
                         {(() => {
                           const cost = allocations
@@ -243,12 +239,6 @@ export default function OrderDownload() {
                             </span>
                           ) : null
                         })()}
-                        {missingMappingCount > 0 && (
-                          <span className="flex items-center gap-1 text-status-warning">
-                            <AlertCircle size={12} />
-                            매핑 누락 {missingMappingCount}건
-                          </span>
-                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">

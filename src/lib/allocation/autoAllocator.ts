@@ -1,5 +1,6 @@
 import { normalizeProductName } from '@/lib/matching/normalizer'
 import { extractAttributes } from '@/lib/matching/attributeExtractor'
+import { extractSimpleKeyword } from '@/lib/allocation/itemSummary'
 import {
   findCandidatesByAttributes,
   shouldAutoApply,
@@ -24,6 +25,7 @@ export type AutoAllocationInput = {
   suppliers: Supplier[]
   supplierProducts?: SupplierProduct[]
   fruitDictionary?: FruitDictionary[]
+  keywordOverrides?: Map<string, string>
 }
 
 export type PendingAllocation = {
@@ -32,7 +34,7 @@ export type PendingAllocation = {
   supplierProductName: string
   supplierProductCode?: string
   allocatedQuantity: number
-  isTemporaryOverride: false
+  isTemporaryOverride: boolean
   nameMappingApplied: boolean
   smartAllocationApplied: boolean
   supplierPrice?: number
@@ -65,6 +67,7 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
     suppliers,
     supplierProducts,
     fruitDictionary,
+    keywordOverrides,
   } = input
   const allocated: PendingAllocation[] = []
   const suggested: SuggestedAllocation[] = []
@@ -79,6 +82,67 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
     fruitDictionary.length > 0
 
   for (const order of orders) {
+    if (keywordOverrides && keywordOverrides.size > 0) {
+      let keyword: string | null = null
+      if (fruitDictionary && fruitDictionary.length > 0) {
+        const allActiveFd = fruitDictionary.map((d) => d.isActive ? d : { ...d, isActive: true })
+        const attrs = extractAttributes(order.productName, order.optionName, allActiveFd)
+        keyword = attrs.fruit
+      }
+      if (!keyword) {
+        keyword = extractSimpleKeyword(order.productName)
+      }
+      if (keywordOverrides.has(keyword)) {
+        const overrideSupplierId = keywordOverrides.get(keyword)!
+        if (supplierMap.has(overrideSupplierId)) {
+          const nameResult = findNameMapping(
+            order.platform,
+            order.productName,
+            order.optionName,
+            overrideSupplierId,
+            nameMappings
+          )
+
+          let spName = nameResult.supplierProductName
+          let spCode = nameResult.supplierProductCode
+          let spPrice: number | undefined
+
+          if (!nameResult.applied && supplierProducts) {
+            let sp = findSupplierProduct(
+              overrideSupplierId,
+              nameResult.supplierProductName,
+              nameResult.supplierProductCode,
+              supplierProducts
+            )
+            if (!sp && fruitDictionary && fruitDictionary.length > 0) {
+              sp = findSupplierProductByAttributes(
+                order, overrideSupplierId, supplierProducts, fruitDictionary
+              )
+            }
+            if (sp) {
+              spName = sp.productName
+              spCode = sp.productCode || undefined
+              spPrice = sp.price ?? undefined
+            }
+          }
+
+          allocated.push({
+            orderId: order.id,
+            supplierId: overrideSupplierId,
+            supplierProductName: spName,
+            supplierProductCode: spCode,
+            allocatedQuantity: order.quantity,
+            isTemporaryOverride: true,
+            nameMappingApplied: nameResult.applied,
+            smartAllocationApplied: false,
+            supplierPrice: spPrice,
+            allocationReason: '품목 검토에서 선택',
+          })
+          continue
+        }
+      }
+    }
+
     if (useSmartAllocation) {
       // Stage 1: strict exact match
       let candidates = findProductMappingCandidates(

@@ -121,6 +121,7 @@ export async function updateGroupSupplier(input: {
   newSupplierId: string
   supplierProductName: string
   supplierProductCode?: string
+  supplierPrice?: number
   isTemporaryOverride: boolean
   nameMappingApplied: boolean
 }): Promise<Allocation[]> {
@@ -133,7 +134,7 @@ export async function updateGroupSupplier(input: {
       is_temporary_override: input.isTemporaryOverride,
       name_mapping_applied: input.nameMappingApplied,
       smart_allocation_applied: false,
-      supplier_price: null,
+      supplier_price: input.supplierPrice ?? null,
     })
     .eq('work_session_id', input.workSessionId)
     .in('order_id', input.orderIds)
@@ -204,6 +205,16 @@ export async function deleteSupplierAllocations(
     .eq('supplier_id', supplierId)
 
   if (error) throw new Error(`배정 삭제 실패: ${error.message}`)
+}
+
+export async function deleteAllAllocations(
+  workSessionId: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('allocations')
+    .delete()
+    .eq('work_session_id', workSessionId)
+  if (error) throw new Error(`배정 초기화 실패: ${error.message}`)
 }
 
 export async function getUnallocatedOrders(

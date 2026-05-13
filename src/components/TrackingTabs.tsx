@@ -75,7 +75,7 @@ export function TrackingTabs({
                 active
                   ? 'bg-primary text-white'
                   : completed
-                    ? 'bg-status-success text-white'
+                    ? 'bg-success text-white'
                     : 'bg-gray-200 text-t-mute'
               )}
             >

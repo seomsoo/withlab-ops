@@ -76,7 +76,12 @@ export default function WorkSessionSelector() {
               >
                 <button
                   className="flex flex-1 items-center gap-4 min-w-0 text-left"
-                  onClick={() => navigate(`/orders/${s.id}/upload`)}
+                  onClick={() => {
+                    const dest = s.status === 'ordered' || s.status === 'completed'
+                      ? `/orders/${s.id}/download`
+                      : `/orders/${s.id}/upload`
+                    navigate(dest)
+                  }}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">

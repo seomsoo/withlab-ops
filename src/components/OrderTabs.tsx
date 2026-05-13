@@ -5,8 +5,9 @@ import { cn } from '@/lib/utils'
 
 const TAB_ITEMS = [
   { id: 'upload', label: '주문 업로드', step: '1' },
-  { id: 'assign', label: '공급처 배정', step: '2' },
-  { id: 'download', label: '발주서 다운로드', step: '3' },
+  { id: 'review', label: '품목 검토', step: '2' },
+  { id: 'assign', label: '공급처 배정', step: '3' },
+  { id: 'download', label: '발주서 다운로드', step: '4' },
 ] as const
 
 type TabId = (typeof TAB_ITEMS)[number]['id']
@@ -22,6 +23,7 @@ export function OrderTabs({ sessionId, activeTab, completedTabs = [] }: OrderTab
 
   const tabPaths: Record<TabId, string> = {
     upload: `/orders/${sessionId}/upload`,
+    review: `/orders/${sessionId}/review`,
     assign: `/orders/${sessionId}/allocation`,
     download: `/orders/${sessionId}/download`,
   }
@@ -57,7 +59,7 @@ export function OrderTabs({ sessionId, activeTab, completedTabs = [] }: OrderTab
                 active
                   ? 'bg-primary text-white'
                   : completed
-                    ? 'bg-status-success text-white'
+                    ? 'bg-success text-white'
                     : 'bg-gray-200 text-t-mute'
               )}
             >

@@ -15,8 +15,8 @@ import { toast } from 'sonner'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { TrackingTabs } from '@/components/TrackingTabs'
+import { SupplierProgressChips } from '@/components/SupplierProgressChips'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -100,14 +100,35 @@ export default function TrackingDownload() {
     [downloadPlatformFile]
   )
 
+  const handleDownloadAllLabels = useCallback(
+    async (platform: Platform) => {
+      const data = exportData[platform]
+      setDownloading(platform)
+      try {
+        if (data.labels.length > 1) {
+          for (const label of data.labels) {
+            await downloadPlatformFile(platform, label)
+          }
+        } else {
+          await downloadPlatformFile(platform)
+        }
+      } catch {
+        // handled in hook
+      } finally {
+        setDownloading(null)
+      }
+    },
+    [downloadPlatformFile, exportData]
+  )
+
   const handleDownloadAll = useCallback(async () => {
     setDownloading('all')
     try {
       if (exportData.coupang.count > 0 && templateStatus.coupang) {
-        await downloadPlatformFile('coupang')
+        await handleDownloadAllLabels('coupang')
       }
       if (exportData.toss.count > 0 && templateStatus.toss) {
-        await downloadPlatformFile('toss')
+        await handleDownloadAllLabels('toss')
       }
       toast.success('전체 다운로드 완료')
     } catch {
@@ -115,7 +136,7 @@ export default function TrackingDownload() {
     } finally {
       setDownloading(null)
     }
-  }, [downloadPlatformFile, exportData, templateStatus])
+  }, [handleDownloadAllLabels, exportData, templateStatus])
 
   const handleComplete = useCallback(async () => {
     try {
@@ -167,41 +188,24 @@ export default function TrackingDownload() {
           canOpenDownload={canOpenDownload}
         />
 
-        {supplierProgress.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {supplierProgress.map((sp) => (
-              <div
-                key={sp.supplierId}
-                className="flex items-center gap-2 rounded-lg border border-line bg-card px-3 py-2 text-xs"
-              >
-                <span className={sp.uploadedCount > 0 ? 'text-green-600' : 'text-t-mute'}>
-                  {sp.uploadedCount > 0 ? '✓' : '○'}
-                </span>
-                <span className="font-medium text-t-strong">{sp.supplierName}</span>
-                <span className="text-t-mute">
-                  {sp.matchedCount}/{sp.totalAllocations}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        <SupplierProgressChips progress={supplierProgress} />
 
         {/* 미매칭 경고 배너 */}
         {unmatchedTotal > 0 && (
-          <div className="flex items-start gap-3 rounded-radius-md border border-amber-200 bg-amber-50 px-4 py-3">
-            <AlertCircle size={18} className="mt-0.5 flex-shrink-0 text-amber-600" />
+          <div className="flex items-start gap-3 rounded-radius-md border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/40">
+            <AlertCircle size={18} className="mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="flex-1">
-              <div className="text-sm font-semibold text-amber-800">
+              <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
                 미매칭 {unmatchedTotal}건이 있어요
               </div>
-              <div className="text-xs text-amber-700">
+              <div className="text-xs text-amber-700 dark:text-amber-300">
                 미매칭 건은 다운로드 파일에서 제외됩니다. 매칭을 마치고 다시
                 다운로드하면 더 정확해요.
               </div>
             </div>
             <Link
               to={`/tracking/${sessionId}/match`}
-              className="flex items-center gap-1 text-xs font-medium text-amber-700 hover:underline"
+              className="flex items-center gap-1 text-xs font-medium text-amber-700 hover:underline dark:text-amber-300"
             >
               매칭 결과 확인 <ExternalLink size={12} />
             </Link>
@@ -210,20 +214,20 @@ export default function TrackingDownload() {
 
         {/* 택배사 매핑 경고 배너 */}
         {courierWarnings.length > 0 && (
-          <div className="flex items-start gap-3 rounded-radius-md border border-blue-200 bg-blue-50 px-4 py-3">
-            <AlertCircle size={18} className="mt-0.5 flex-shrink-0 text-blue-600" />
+          <div className="flex items-start gap-3 rounded-radius-md border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/40">
+            <AlertCircle size={18} className="mt-0.5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
             <div className="flex-1">
-              <div className="text-sm font-semibold text-blue-800">
+              <div className="text-sm font-semibold text-blue-800 dark:text-blue-200">
                 택배사 매핑이 안 된 건이 있어요
               </div>
-              <div className="text-xs text-blue-700">
+              <div className="text-xs text-blue-700 dark:text-blue-300">
                 다운로드는 가능하지만, 매핑되지 않은 택배사 코드는 플랫폼에서
                 인식되지 않을 수 있어요.
               </div>
             </div>
             <Link
               to="/mapping/couriers"
-              className="flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline"
+              className="flex items-center gap-1 text-xs font-medium text-blue-700 hover:underline dark:text-blue-300"
             >
               택배사 매핑 추가 <ExternalLink size={12} />
             </Link>
@@ -247,31 +251,6 @@ export default function TrackingDownload() {
           )}
         </div>
 
-        {/* 다운로드 요약 */}
-        {totalMatched > 0 && (
-          <div className="rounded-radius-md border border-line bg-card shadow-level-1 overflow-hidden">
-            <div className="border-b border-line bg-bg-subtle px-4 py-2 text-xs font-semibold text-t-secondary">
-              다운로드 미리보기
-            </div>
-            <div className="grid grid-cols-2 gap-4 p-4">
-              <div className="flex items-center gap-3">
-                <Badge variant="outline">쿠팡</Badge>
-                <span className="text-sm font-medium">{exportData.coupang.count}건</span>
-                {!templateStatus.coupang && exportData.coupang.count > 0 && (
-                  <span className="text-xs text-amber-600">양식 미등록</span>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <Badge variant="outline">토스</Badge>
-                <span className="text-sm font-medium">{exportData.toss.count}건</span>
-                {!templateStatus.toss && exportData.toss.count > 0 && (
-                  <span className="text-xs text-amber-600">양식 미등록</span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* 플랫폼별 다운로드 카드 */}
         <div className="grid grid-cols-2 gap-4">
           <PlatformCard
@@ -284,6 +263,7 @@ export default function TrackingDownload() {
             labels={exportData.coupang.labels}
             countByLabel={exportData.coupang.countByLabel}
             onDownload={(filterLabel) => void handleDownload('coupang', filterLabel)}
+            onDownloadAll={() => void handleDownloadAllLabels('coupang')}
           />
           <PlatformCard
             platform="toss"
@@ -295,44 +275,10 @@ export default function TrackingDownload() {
             labels={exportData.toss.labels}
             countByLabel={exportData.toss.countByLabel}
             onDownload={(filterLabel) => void handleDownload('toss', filterLabel)}
+            onDownloadAll={() => void handleDownloadAllLabels('toss')}
           />
         </div>
 
-        {/* 업로드 가이드 */}
-        <div className="rounded-radius-md border border-line bg-card p-6 shadow-level-1">
-          <div className="mb-1 text-[15px] font-bold text-t-strong">
-            다운로드 후 업로드 방법
-          </div>
-          <div className="mb-4 text-sm text-t-mute">
-            각 플랫폼 사이트에서 운송장 일괄 업로드 메뉴에 파일을 올려주세요.
-          </div>
-          <div className="space-y-3">
-            <GuideStep
-              step={1}
-              platform="쿠팡"
-              title="쿠팡 WING 접속"
-              body="쿠팡 WING > 주문관리 > 출고 처리 메뉴로 이동"
-            />
-            <GuideStep
-              step={2}
-              platform="쿠팡"
-              title="운송장 일괄등록"
-              body="[운송장 일괄등록] 클릭 후 다운받은 엑셀 파일 업로드"
-            />
-            <GuideStep
-              step={3}
-              platform="토스"
-              title="토스 셀러센터 접속"
-              body="토스 셀러 > 주문/배송 > 배송 처리로 이동"
-            />
-            <GuideStep
-              step={4}
-              platform="토스"
-              title="운송장 일괄 업로드"
-              body="[운송장 업로드] 메뉴에서 다운받은 엑셀 업로드"
-            />
-          </div>
-        </div>
       </div>
 
       {/* 하단 CTA */}
@@ -434,6 +380,7 @@ function PlatformCard({
   labels,
   countByLabel,
   onDownload,
+  onDownloadAll,
 }: {
   platform: Platform
   label: string
@@ -444,6 +391,7 @@ function PlatformCard({
   labels: string[]
   countByLabel: Record<string, number>
   onDownload: (filterLabel?: string) => void
+  onDownloadAll: () => void
 }) {
   const today = new Date()
     .toISOString()
@@ -503,7 +451,7 @@ function PlatformCard({
         <Button
           className="w-full"
           disabled={count === 0 || isDownloading || !hasTemplate}
-          onClick={() => onDownload()}
+          onClick={() => hasMultipleLabels ? onDownloadAll() : onDownload()}
         >
           {downloading === platform ? (
             <LoadingSpinner size="sm" />
@@ -555,43 +503,3 @@ function PlatformCard({
   )
 }
 
-function GuideStep({
-  step,
-  platform,
-  title,
-  body,
-}: {
-  step: number
-  platform: string
-  title: string
-  body: string
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <span
-        className={cn(
-          'grid h-6 w-6 flex-shrink-0 place-items-center rounded-full text-xs font-bold text-white',
-          platform === '쿠팡' ? 'bg-blue-500' : 'bg-indigo-500'
-        )}
-      >
-        {step}
-      </span>
-      <div>
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'rounded-full px-2 py-0.5 text-[10px] font-semibold',
-              platform === '쿠팡'
-                ? 'bg-blue-50 text-blue-700'
-                : 'bg-indigo-50 text-indigo-700'
-            )}
-          >
-            {platform}
-          </span>
-          <span className="text-sm font-medium text-t-strong">{title}</span>
-        </div>
-        <div className="mt-0.5 text-xs text-t-mute">{body}</div>
-      </div>
-    </div>
-  )
-}
