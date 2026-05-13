@@ -59,6 +59,7 @@ const SYSTEM_FIELDS: { value: SystemField; label: string; required: boolean }[] 
   { value: 'deliveryMessage', label: '배송메시지', required: false },
   { value: 'buyerName', label: '주문자명', required: false },
   { value: 'buyerPhone', label: '주문자 연락처', required: false },
+  { value: 'orderDate', label: '주문일시', required: false },
   { value: 'senderAddress', label: '보내는분 주소 (=수취인 주소)', required: false },
   { value: 'empty', label: '(빈 칸)', required: false },
 ]

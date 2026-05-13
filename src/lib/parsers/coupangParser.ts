@@ -6,45 +6,45 @@ import { extractDigits } from '@/utils/phone'
 import type { StandardOrder, InvalidRow, DuplicateRow, ParseResult } from '@/types'
 
 const SHEET_NAME = 'Delivery'
-const COLUMN_COUNT = 40
 
-const COL = {
-  orderNo: 2,
-  orderDate: 9,
-  productName: 10,
-  optionName: 11,
-  displayProductName: 12,
-  quantity: 22,
-  buyerName: 24,
-  buyerPhone: 25,
-  recipientName: 26,
-  recipientPhone: 27,
-  zipCode: 28,
-  address: 29,
-  deliveryMessage: 30,
+const REQUIRED_HEADERS = {
+  orderNo: '주문번호',
+  orderDate: '주문일',
+  productName: '등록상품명',
+  optionName: '등록옵션명',
+  displayProductName: '노출상품명(옵션명)',
+  quantity: '구매수(수량)',
+  buyerName: '구매자',
+  buyerPhone: '구매자전화번호',
+  recipientName: '수취인이름',
+  recipientPhone: '수취인전화번호',
+  zipCode: '우편번호',
+  address: '수취인 주소',
+  deliveryMessage: '배송메세지',
 } as const
 
-const HEADER_KEYS = [
-  '번호', '묶음배송번호', '주문번호', '택배사', '운송장번호',
-  '분리배송 Y/N', '분리배송 출고예정일', '주문시 출고예정일', '출고일(발송일)',
-  '주문일', '등록상품명', '등록옵션명', '노출상품명(옵션명)', '노출상품ID',
-  '옵션ID', '최초등록등록상품명/옵션명', '업체상품코드', '바코드',
-  '결제액', '배송비구분', '배송비', '도서산간 추가배송비',
-  '구매수(수량)', '옵션판매가(판매단가)', '구매자', '구매자전화번호',
-  '수취인이름', '수취인전화번호', '우편번호', '수취인 주소',
-  '배송메세지', '상품별 추가메시지', '주문자 추가메시지', '배송완료일',
-  '구매확정일자', '개인통관번호(PCCC)', '통관용수취인전화번호', '기타',
-  '결제위치', '배송유형',
-]
+type ColMap = Record<keyof typeof REQUIRED_HEADERS, number>
+
+function buildColMap(headerRow: unknown[]): ColMap | null {
+  const values = headerRow.map((v) => cellToString(v))
+  const map = {} as Record<string, number>
+  for (const [key, label] of Object.entries(REQUIRED_HEADERS)) {
+    const idx = values.indexOf(label)
+    if (idx === -1) return null
+    map[key] = idx
+  }
+  return map as ColMap
+}
 
 function normalizeRowValues(row: unknown[], columnCount: number): unknown[] {
   return Array.from({ length: columnCount }, (_, i) => row[i] ?? null)
 }
 
-function buildRaw(row: unknown[]): Record<string, unknown> {
+function buildRaw(row: unknown[], headerRow: unknown[]): Record<string, unknown> {
   const obj: Record<string, unknown> = {}
-  for (let i = 0; i < HEADER_KEYS.length; i++) {
-    obj[HEADER_KEYS[i]!] = row[i] ?? null
+  for (let i = 0; i < headerRow.length; i++) {
+    const key = cellToString(headerRow[i])
+    if (key) obj[key] = row[i] ?? null
   }
   return obj
 }
@@ -56,6 +56,20 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
   }
 
   const allRows = sheetToRows(sheet)
+  const headerRow = allRows[0]
+  if (!headerRow) {
+    throw new Error('쿠팡 헤더 행을 찾을 수 없습니다')
+  }
+
+  const col = buildColMap(headerRow)
+  if (!col) {
+    const found = headerRow.map((v) => cellToString(v)).filter(Boolean)
+    throw new Error(
+      `쿠팡 헤더에서 필수 컬럼을 찾을 수 없습니다. 발견된 컬럼: ${found.slice(0, 10).join(', ')}`
+    )
+  }
+
+  const columnCount = headerRow.length
   const dataRows = allRows.slice(1)
 
   const orders: StandardOrder[] = []
@@ -65,10 +79,10 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i]!
     const excelRowNumber = i + 2
-    const normalized = normalizeRowValues(row, COLUMN_COUNT)
+    const normalized = normalizeRowValues(row, columnCount)
 
-    const orderNo = cellToString(row[COL.orderNo])
-    const productName = cellToString(row[COL.productName])
+    const orderNo = cellToString(row[col.orderNo])
+    const productName = cellToString(row[col.productName])
 
     if (orderNo === '' && productName === '') {
       skippedRows++
@@ -84,7 +98,7 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
       continue
     }
 
-    const recipientName = cellToString(row[COL.recipientName])
+    const recipientName = cellToString(row[col.recipientName])
     if (recipientName === '') {
       invalidRows.push({
         rowNumber: excelRowNumber,
@@ -94,7 +108,7 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
       continue
     }
 
-    const address = cellToString(row[COL.address])
+    const address = cellToString(row[col.address])
     if (address === '') {
       invalidRows.push({
         rowNumber: excelRowNumber,
@@ -104,7 +118,7 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
       continue
     }
 
-    const recipientPhone = cellToString(row[COL.recipientPhone])
+    const recipientPhone = cellToString(row[col.recipientPhone])
     if (recipientPhone === '') {
       invalidRows.push({
         rowNumber: excelRowNumber,
@@ -124,7 +138,7 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
       continue
     }
 
-    const quantity = cellToInt(row[COL.quantity])
+    const quantity = cellToInt(row[col.quantity])
     if (quantity === null || quantity <= 0) {
       invalidRows.push({
         rowNumber: excelRowNumber,
@@ -134,7 +148,7 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
       continue
     }
 
-    const buyerPhone = cellToString(row[COL.buyerPhone])
+    const buyerPhone = cellToString(row[col.buyerPhone])
 
     orders.push({
       id: crypto.randomUUID(),
@@ -142,21 +156,21 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
       orderNo,
       orderItemNo: orderNo,
       matchingKey: orderNo,
-      orderDate: cellToString(row[COL.orderDate]),
+      orderDate: cellToString(row[col.orderDate]),
       productName,
-      optionName: cellToString(row[COL.optionName]),
-      displayProductName: cellToString(row[COL.displayProductName]) || productName,
+      optionName: cellToString(row[col.optionName]),
+      displayProductName: cellToString(row[col.displayProductName]) || productName,
       quantity,
-      buyerName: cellToString(row[COL.buyerName]),
+      buyerName: cellToString(row[col.buyerName]),
       buyerPhone,
       buyerPhoneDigits: extractDigits(buyerPhone),
       recipientName,
       recipientPhone,
       recipientPhoneDigits,
-      zipCode: cellToString(row[COL.zipCode]),
+      zipCode: cellToString(row[col.zipCode]),
       address,
-      deliveryMessage: cellToString(row[COL.deliveryMessage]),
-      raw: buildRaw(row),
+      deliveryMessage: cellToString(row[col.deliveryMessage]),
+      raw: buildRaw(row, headerRow),
       rawValues: normalized,
       rawRowNumber: excelRowNumber,
     })

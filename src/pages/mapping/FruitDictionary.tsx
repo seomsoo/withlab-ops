@@ -22,11 +22,17 @@ type SynonymGroupForm = {
   aliasesRaw: string
 }
 
+type WeightMappingForm = {
+  from: string
+  to: string
+}
+
 type FormState = {
   category: string
   keywords: string
   gradeSynonyms: SynonymGroupForm[]
   sizeSynonyms: SynonymGroupForm[]
+  weightMapping: WeightMappingForm[]
 }
 
 const EMPTY_FORM: FormState = {
@@ -34,6 +40,7 @@ const EMPTY_FORM: FormState = {
   keywords: '',
   gradeSynonyms: [],
   sizeSynonyms: [],
+  weightMapping: [],
 }
 
 function toFormState(d: FruitDictionaryType): FormState {
@@ -47,6 +54,10 @@ function toFormState(d: FruitDictionaryType): FormState {
     sizeSynonyms: d.sizeSynonyms.map((g) => ({
       canonical: g.canonical,
       aliasesRaw: g.aliases.join(', '),
+    })),
+    weightMapping: Object.entries(d.weightMapping).map(([from, to]) => ({
+      from,
+      to,
     })),
   }
 }
@@ -95,6 +106,12 @@ export default function FruitDictionary() {
 
     const gradeSynonyms = parseSynonymGroups(form.gradeSynonyms)
     const sizeSynonyms = parseSynonymGroups(form.sizeSynonyms)
+    const weightMapping: Record<string, string> = {}
+    for (const wm of form.weightMapping) {
+      const from = wm.from.trim()
+      const to = wm.to.trim()
+      if (from && to) weightMapping[from] = to
+    }
 
     try {
       if (editingId) {
@@ -103,6 +120,7 @@ export default function FruitDictionary() {
           keywords,
           gradeSynonyms,
           sizeSynonyms,
+          weightMapping,
         })
       } else {
         await create({
@@ -111,6 +129,7 @@ export default function FruitDictionary() {
           gradeSynonyms,
           sizeSynonyms,
           weightAliases: { kg: ['키로', 'KG', '킬로'] },
+          weightMapping,
           isActive: true,
         })
       }
@@ -156,6 +175,33 @@ export default function FruitDictionary() {
     setForm((prev) => ({
       ...prev,
       [key]: prev[key].filter((_, i) => i !== index),
+    }))
+  }
+
+  const addWeightMapping = () => {
+    setForm((prev) => ({
+      ...prev,
+      weightMapping: [...prev.weightMapping, { from: '', to: '' }],
+    }))
+  }
+
+  const updateWeightMapping = (
+    index: number,
+    field: 'from' | 'to',
+    value: string
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      weightMapping: prev.weightMapping.map((wm, i) =>
+        i === index ? { ...wm, [field]: value } : wm
+      ),
+    }))
+  }
+
+  const removeWeightMapping = (index: number) => {
+    setForm((prev) => ({
+      ...prev,
+      weightMapping: prev.weightMapping.filter((_, i) => i !== index),
     }))
   }
 
@@ -268,6 +314,56 @@ export default function FruitDictionary() {
               onUpdate={updateSynonymGroup}
               onRemove={removeSynonymGroup}
             />
+
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="text-xs font-medium text-t-secondary">
+                  무게 변환
+                </label>
+                <button
+                  type="button"
+                  onClick={addWeightMapping}
+                  className="text-xs text-primary hover:underline"
+                >
+                  + 추가
+                </button>
+              </div>
+              {form.weightMapping.length === 0 ? (
+                <p className="text-xs text-t-mute">
+                  등록된 변환 규칙 없음 (예: 4.5kg → 5kg)
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {form.weightMapping.map((wm, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        value={wm.from}
+                        onChange={(e) =>
+                          updateWeightMapping(i, 'from', e.target.value)
+                        }
+                        placeholder="원본 (예: 4.5kg)"
+                        className="h-8 w-28 text-xs"
+                      />
+                      <span className="text-xs text-t-mute">&rarr;</span>
+                      <Input
+                        value={wm.to}
+                        onChange={(e) =>
+                          updateWeightMapping(i, 'to', e.target.value)
+                        }
+                        placeholder="변환 (예: 5kg)"
+                        className="h-8 w-28 text-xs"
+                      />
+                      <button
+                        onClick={() => removeWeightMapping(i)}
+                        className="shrink-0 text-t-mute hover:text-status-error"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <DialogFooter>
@@ -326,7 +422,9 @@ function DictionaryCard({
           </button>
         </div>
       </div>
-      {(dict.gradeSynonyms.length > 0 || dict.sizeSynonyms.length > 0) && (
+      {(dict.gradeSynonyms.length > 0 ||
+        dict.sizeSynonyms.length > 0 ||
+        Object.keys(dict.weightMapping).length > 0) && (
         <div className="mt-2 flex flex-wrap gap-3 text-xs text-t-mute">
           {dict.gradeSynonyms.map((g) => (
             <span key={g.canonical}>
@@ -336,6 +434,11 @@ function DictionaryCard({
           {dict.sizeSynonyms.map((g) => (
             <span key={g.canonical}>
               크기: {g.canonical} ({g.aliases.join(', ')})
+            </span>
+          ))}
+          {Object.entries(dict.weightMapping).map(([from, to]) => (
+            <span key={from}>
+              무게: {from} &rarr; {to}
             </span>
           ))}
         </div>

@@ -53,6 +53,7 @@ export async function updateFruitDictionary(
     gradeSynonyms?: SynonymGroup[]
     sizeSynonyms?: SynonymGroup[]
     weightAliases?: Record<string, string[]>
+    weightMapping?: Record<string, string>
     isActive?: boolean
   }
 ): Promise<FruitDictionary> {
@@ -71,6 +72,7 @@ export async function updateFruitDictionary(
     row.size_synonyms = result
   }
   if (input.weightAliases !== undefined) row.weight_aliases = input.weightAliases
+  if (input.weightMapping !== undefined) row.weight_mapping = input.weightMapping
   if (input.isActive !== undefined) row.is_active = input.isActive
 
   const { data, error } = await supabase

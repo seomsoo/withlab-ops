@@ -81,6 +81,7 @@ export function useFruitDictionary(activeOnly = true) {
         gradeSynonyms?: SynonymGroup[]
         sizeSynonyms?: SynonymGroup[]
         weightAliases?: Record<string, string[]>
+        weightMapping?: Record<string, string>
         isActive?: boolean
       }
     ) => {

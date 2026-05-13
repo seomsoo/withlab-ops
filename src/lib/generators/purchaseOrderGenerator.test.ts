@@ -24,6 +24,7 @@ function makeItem(overrides: Partial<PurchaseOrderItem> = {}): PurchaseOrderItem
     deliveryMessage: '부재시 문앞',
     buyerName: '홍길동',
     buyerPhone: '01012345678',
+    orderDate: '2026-05-10 09:30:00',
     nameMappingApplied: true,
     ...overrides,
   }

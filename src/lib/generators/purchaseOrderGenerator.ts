@@ -118,6 +118,8 @@ function getValueBySystemField(
       return applyPhoneFormat(item.buyerPhone, mapping.format)
     case 'senderAddress':
       return item.address
+    case 'orderDate':
+      return item.orderDate
     case 'platformProductName':
       return item.displayProductName
     case 'empty':
@@ -180,6 +182,7 @@ export function buildPurchaseOrders(
         deliveryMessage: a.order.deliveryMessage,
         buyerName: a.order.buyerName,
         buyerPhone: a.order.buyerPhone,
+        orderDate: a.order.orderDate,
         nameMappingApplied: a.nameMappingApplied,
       })),
     })

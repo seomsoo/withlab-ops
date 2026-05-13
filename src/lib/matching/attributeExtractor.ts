@@ -13,17 +13,35 @@ export type ProductAttributes = {
 export function extractAttributes(
   name: string,
   option: string,
-  dictionary: FruitDictionary[]
+  dictionary: FruitDictionary[],
+  applyWeightMapping = false
 ): ProductAttributes {
   const combined = `${name} ${option}`
   const normalized = normalizeProductName(combined)
 
   const fruit = detectFruit(normalized, dictionary)
-  const weight = extractWeight(combined, dictionary)
+  let weight = extractWeight(combined, dictionary)
   const grade = detectGrade(normalized, dictionary)
   const size = detectSize(normalized, dictionary)
 
+  if (applyWeightMapping && fruit && weight) {
+    weight = mapWeight(fruit, weight, dictionary) ?? weight
+  }
+
   return { fruit, weight, grade, size, raw: normalized }
+}
+
+function mapWeight(
+  fruit: string,
+  weight: string,
+  dictionary: FruitDictionary[]
+): string | null {
+  for (const entry of dictionary) {
+    if (!entry.isActive || entry.category !== fruit) continue
+    const mapped = entry.weightMapping[weight]
+    if (mapped) return mapped
+  }
+  return null
 }
 
 function detectFruit(

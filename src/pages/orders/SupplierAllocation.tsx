@@ -1373,7 +1373,7 @@ function SupplierProductPickerPopover({
 
   const scored = useMemo(() => {
     const attrs = fruitDictionary.length > 0
-      ? extractAttributes(group.productName, group.optionName, fruitDictionary)
+      ? extractAttributes(group.productName, group.optionName, fruitDictionary, true)
       : null
 
     return forSupplier.map((sp) => {

@@ -36,6 +36,7 @@ const systemFieldSchema = z.enum([
   'deliveryMessage',
   'buyerName',
   'buyerPhone',
+  'orderDate',
   'senderAddress',
   'empty',
 ])
@@ -819,6 +820,7 @@ export type FruitDictionaryRow = {
   grade_synonyms: Record<string, string[]>
   size_synonyms: Record<string, string[]>
   weight_aliases: Record<string, string[]>
+  weight_mapping: Record<string, string>
   is_active: boolean
   created_at: string
   updated_at: string
@@ -851,6 +853,7 @@ export function toFruitDictionary(row: FruitDictionaryRow): FruitDictionary {
     gradeSynonyms: jsonbToSynonymGroups(row.grade_synonyms),
     sizeSynonyms: jsonbToSynonymGroups(row.size_synonyms),
     weightAliases: row.weight_aliases,
+    weightMapping: row.weight_mapping ?? {},
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -866,6 +869,7 @@ export function fromFruitDictionary(
     grade_synonyms: synonymGroupsToJsonb(d.gradeSynonyms),
     size_synonyms: synonymGroupsToJsonb(d.sizeSynonyms),
     weight_aliases: d.weightAliases,
+    weight_mapping: d.weightMapping,
     is_active: d.isActive,
   }
 }
@@ -886,4 +890,5 @@ export const fruitDictionaryFormSchema = z.object({
     })
   ),
   weightAliases: z.record(z.string(), z.array(z.string())),
+  weightMapping: z.record(z.string(), z.string()),
 })

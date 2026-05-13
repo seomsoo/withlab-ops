@@ -25,6 +25,7 @@ export type AllocationWithOrder = Allocation & {
     | 'rawValues'
     | 'rawRowNumber'
     | 'orderItemNo'
+    | 'orderDate'
   >
   supplierName: string
 }
@@ -69,7 +70,7 @@ export async function getAllocations(
       orders!inner (
         platform, product_name, option_name, display_product_name,
         quantity, matching_key,
-        order_no, order_item_no, recipient_name, recipient_phone,
+        order_no, order_item_no, order_date, recipient_name, recipient_phone,
         address, zip_code, delivery_message, buyer_name, buyer_phone,
         raw_values, raw_row_number
       ),
@@ -95,6 +96,7 @@ export async function getAllocations(
         matchingKey: orderRow.matching_key as string,
         orderNo: orderRow.order_no as string,
         orderItemNo: orderRow.order_item_no as string,
+        orderDate: (orderRow.order_date as string) ?? '',
         recipientName: orderRow.recipient_name as string,
         recipientPhone: (orderRow.recipient_phone as string) ?? '',
         address: orderRow.address as string,

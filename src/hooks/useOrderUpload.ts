@@ -119,12 +119,6 @@ export function useOrderUpload(workSessionId: string) {
           ? parseCoupangOrders(workbook)
           : parseTossOrders(workbook)
 
-      if (detected === 'coupang') {
-        setCoupangParseResult(parseResult)
-      } else {
-        setTossParseResult(parseResult)
-      }
-
       if (parseResult.orders.length === 0) {
         throw new Error('저장 가능한 정상 주문이 없습니다')
       }
@@ -151,12 +145,6 @@ export function useOrderUpload(workSessionId: string) {
         detected === 'coupang'
           ? parseCoupangOrders(workbook)
           : parseTossOrders(workbook)
-
-      if (detected === 'coupang') {
-        setCoupangParseResult(parseResult)
-      } else {
-        setTossParseResult(parseResult)
-      }
 
       if (parseResult.orders.length === 0) {
         throw new Error('저장 가능한 정상 주문이 없습니다')
@@ -316,6 +304,32 @@ export function useOrderUpload(workSessionId: string) {
     [workSessionId]
   )
 
+  const removeImport = useCallback(
+    async (platform: Platform) => {
+      const imp = platform === 'coupang' ? coupangImport : tossImport
+      if (!imp) return
+      try {
+        await deleteOrderImport(imp.id)
+        if (platform === 'coupang') {
+          setCoupangImport(null)
+          setCoupangParseResult(null)
+        } else {
+          setTossImport(null)
+          setTossParseResult(null)
+        }
+        const freshOrders = await getOrders(workSessionId)
+        setOrders(freshOrders)
+        const label = platform === 'coupang' ? '쿠팡' : '토스'
+        toast.success(`${label} 주문을 삭제했습니다`)
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '오류가 발생했습니다'
+        toast.error(message)
+      }
+    },
+    [workSessionId, coupangImport, tossImport]
+  )
+
   const summary = useMemo(() => {
     const cValid = coupangParseResult?.meta.validRows ?? 0
     const tValid = tossParseResult?.meta.validRows ?? 0
@@ -347,6 +361,7 @@ export function useOrderUpload(workSessionId: string) {
     prepareUpload,
     prepareUploadAutoDetect,
     commitUpload,
+    removeImport,
     summary,
   }
 }

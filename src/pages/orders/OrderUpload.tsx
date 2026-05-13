@@ -12,6 +12,7 @@ import {
   ChevronRight as ChevronRightIcon,
   Plus,
   Replace,
+  Trash2,
 } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -222,6 +223,7 @@ export default function OrderUpload() {
           disabled={isReadonly}
           onFileSelect={(file) => handleFileSelect(file)}
           onPlatformFileSelect={(file, platform) => handleFileSelect(file, platform)}
+          onDelete={(platform) => upload.removeImport(platform)}
         />
       </div>
 
@@ -567,6 +569,7 @@ function UnifiedDropZone({
   disabled,
   onFileSelect,
   onPlatformFileSelect,
+  onDelete,
 }: {
   coupangImport: import('@/types').OrderImport | null
   tossImport: import('@/types').OrderImport | null
@@ -574,6 +577,7 @@ function UnifiedDropZone({
   disabled: boolean
   onFileSelect: (file: File) => void
   onPlatformFileSelect: (file: File, platform: Platform) => void
+  onDelete: (platform: Platform) => void
 }) {
   const inputId = 'file-unified'
 
@@ -641,6 +645,7 @@ function UnifiedDropZone({
                 orderImport={coupangImport}
                 disabled={disabled}
                 onReupload={(file) => onPlatformFileSelect(file, 'coupang')}
+                onDelete={() => onDelete('coupang')}
               />
               <ImportStatus
                 platform="toss"
@@ -648,6 +653,7 @@ function UnifiedDropZone({
                 orderImport={tossImport}
                 disabled={disabled}
                 onReupload={(file) => onPlatformFileSelect(file, 'toss')}
+                onDelete={() => onDelete('toss')}
               />
             </div>
           )}
@@ -663,12 +669,14 @@ function ImportStatus({
   orderImport,
   disabled,
   onReupload,
+  onDelete,
 }: {
   platform: Platform
   label: string
   orderImport: import('@/types').OrderImport | null
   disabled: boolean
   onReupload: (file: File) => void
+  onDelete: () => void
 }) {
   const inputId = `file-re-${platform}`
 
@@ -692,19 +700,27 @@ function ImportStatus({
             </div>
           </div>
           {!disabled && (
-            <label
-              htmlFor={inputId}
-              className="flex shrink-0 cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
-            >
-              <RefreshCw size={12} /> 교체
-              <input
-                id={inputId}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleChange}
-                className="hidden"
-              />
-            </label>
+            <div className="flex shrink-0 items-center gap-2">
+              <label
+                htmlFor={inputId}
+                className="flex cursor-pointer items-center gap-1 text-xs font-semibold text-primary hover:text-primary-hover"
+              >
+                <RefreshCw size={12} /> 교체
+                <input
+                  id={inputId}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleChange}
+                  className="hidden"
+                />
+              </label>
+              <button
+                className="flex items-center gap-1 text-xs font-semibold text-t-mute hover:text-error"
+                onClick={onDelete}
+              >
+                <Trash2 size={12} /> 삭제
+              </button>
+            </div>
           )}
         </>
       ) : (

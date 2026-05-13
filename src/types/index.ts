@@ -73,6 +73,7 @@ export type SystemField =
   | 'deliveryMessage'
   | 'buyerName'
   | 'buyerPhone'
+  | 'orderDate'
   | 'senderAddress'
   | 'empty'
 
@@ -173,6 +174,7 @@ export type PurchaseOrderItem = {
   buyerName: string
   buyerPhone: string
 
+  orderDate: string
   nameMappingApplied: boolean
 }
 
@@ -437,6 +439,7 @@ export type FruitDictionary = {
   gradeSynonyms: SynonymGroup[]
   sizeSynonyms: SynonymGroup[]
   weightAliases: Record<string, string[]>
+  weightMapping: Record<string, string>
   isActive: boolean
   createdAt: string
   updatedAt: string

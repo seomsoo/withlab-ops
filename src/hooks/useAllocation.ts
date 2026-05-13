@@ -42,7 +42,7 @@ export function useAllocation(workSessionId: string) {
           getFruitDictionaries(),
         ])
         if (dictAll.length === 0) return null
-        const attrs = extractAttributes(productName, optionName, dictAll)
+        const attrs = extractAttributes(productName, optionName, dictAll, true)
         if (!attrs.fruit) return null
         const forSupplier = spAll.filter((sp) => sp.supplierId === supplierId)
         let bestSp: SupplierProduct | null = null

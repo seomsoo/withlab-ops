@@ -124,7 +124,8 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
         const attrs = extractAttributes(
           order.productName,
           order.optionName,
-          fruitDictionary
+          fruitDictionary,
+          true
         )
 
         const attrCandidates = findCandidatesByAttributes(
@@ -450,7 +451,8 @@ function findSupplierProductByAttributes(
   const attrs = extractAttributes(
     order.productName,
     order.optionName,
-    fruitDictionary
+    fruitDictionary,
+    true
   )
   if (!attrs.fruit) return null
 
