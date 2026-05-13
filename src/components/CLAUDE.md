@@ -13,6 +13,11 @@ shadcn/ui 기반. `npx shadcn@latest add [component]`로 추가.
 - `EmptyState.tsx` — 빈 상태 표시 (아이콘 + 텍스트 + CTA)
 - `ErrorBoundary.tsx` — React 에러 경계
 - `DataTable.tsx` — 정렬, 페이지네이션 포함 테이블 (선택 사항)
+- `SupplierProgressChips.tsx` — 공급처별 운송장 매칭 진행 칩 (원형 프로그레스 + 매칭 N/M)
+- `PlatformBadge.tsx` — 플랫폼 뱃지 (쿠팡/토스)
+- `PlatformLogo.tsx` — 플랫폼 로고 이미지
+- `OrderTabs.tsx` — 발주서 4단계 탭 (업로드 → 품목 검토 → 공급처 배정 → 다운로드)
+- `TrackingTabs.tsx` — 운송장 3단계 탭 (업로드 → 매칭 → 다운로드)
 
 ## 스타일 규칙
 - Tailwind 유틸리티 클래스 사용

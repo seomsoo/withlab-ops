@@ -101,7 +101,7 @@ withlab/
 │   │   ├── ui/                      # shadcn/ui 컴포넌트
 │   │   └── layout/                  # AppLayout, Sidebar, PageHeader
 │   ├── pages/
-│   │   ├── orders/                  # 발주서 (업로드 → 배정 → 다운로드)
+│   │   ├── orders/                  # 발주서 (업로드 → 품목 검토 → 배정 → 다운로드)
 │   │   ├── tracking/                # 운송장 (업로드 → 매칭 → 출력)
 │   │   ├── mapping/                 # 매핑 관리 (공급처, 품목, 상품명, 택배사)
 │   │   └── settings/                # 양식 관리 (발주서 템플릿, 운송장 템플릿)

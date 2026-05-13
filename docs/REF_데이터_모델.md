@@ -354,6 +354,7 @@ type WorkSession = {
   createdAt: string
   createdBy?: string
   completedAt?: string
+  orderedAt?: string           // 발주 완료 시점 (active→completed 직행 시 기록)
 }
 ```
 

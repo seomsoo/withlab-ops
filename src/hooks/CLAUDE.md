@@ -13,6 +13,7 @@ Supabase API 함수를 래핑하여 로딩/에러/데이터 상태를 관리.
 - `useTrackings.ts` — 운송장 매칭 (Phase 5)
 - `useProductMappings.ts` — 품목↔공급처 매핑 (Phase 2)
 - `useNameMappings.ts` — 상품명 변환 (Phase 2)
+- `useItemReview.ts` — 품목 검토 상태 관리 + 공급처 추천 (Phase 11)
 - `useCourierMappings.ts` — 택배사 매핑 (Phase 2)
 - `useToast.ts` — toast 알림 (Phase 1, 또는 sonner 라이브러리 직접 사용)
 

@@ -52,7 +52,8 @@ create table work_sessions (
     check (status in ('active', 'ordered', 'completed')),
   created_at timestamptz default now(),
   created_by uuid references auth.users(id),
-  completed_at timestamptz
+  completed_at timestamptz,
+  ordered_at timestamptz             -- 발주 완료 시점 (active→completed 직행 시 기록)
 );
 
 create index idx_ws_status on work_sessions(status);
