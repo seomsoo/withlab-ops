@@ -1303,12 +1303,13 @@ function MappingCouriers() {
       <CollapsibleSection title="매핑관리 — 택배사 매핑" icon={Repeat}>
         <div className="flex flex-col gap-4">
           <Para>
-            사이드바 &quot;매핑관리&quot; → &quot;택배사 매핑&quot;. 공급처가
-            운송장에 적는 택배사 이름을 쿠팡/토스가 인식하는 이름으로 변환합니다.
+            사이드바 &quot;매핑관리&quot; → &quot;택배사 매핑&quot;. 운송장에
+            적힌 택배사 이름을 쿠팡/토스가 인식하는 정식 명칭으로 변환합니다.
+            모든 공급처에 공통 적용됩니다.
           </Para>
           <div className="rounded-[8px] bg-gray-50 px-4 py-3 text-[12px] leading-[1.8] text-t-mid">
-            예: 공급처가 적은 &quot;우체국&quot; → 쿠팡/토스에는
-            &quot;우체국택배&quot;로 변환
+            예: 운송장의 &quot;대한통운&quot; → 쿠팡/토스에는 &quot;CJ
+            대한통운&quot;으로 변환
             <br />
             예: &quot;로젠&quot; → &quot;로젠택배&quot;로 변환
           </div>
@@ -1317,23 +1318,17 @@ function MappingCouriers() {
             <SubTitle>택배사 매핑 추가</SubTitle>
             <StepList
               steps={[
-                '오른쪽 위 [추가] 클릭',
+                '오른쪽 위 [매핑 추가] 클릭',
                 '아래 항목을 입력',
-                '[저장] 클릭',
+                '[매핑 추가] 클릭하여 저장',
               ]}
             />
             <Spacer />
             <FieldTable
               fields={[
                 {
-                  name: '공급처',
-                  desc: '이 택배사명을 사용하는 공급처',
-                  required: true,
-                  example: 'A농장',
-                },
-                {
                   name: '원본 택배사명',
-                  desc: '운송장에 적혀있는 택배사명 (정확히)',
+                  desc: '운송장에 적혀있는 택배사명 (정확히 일치해야 변환됨)',
                   required: true,
                   example: '대한통운',
                 },
@@ -1341,7 +1336,7 @@ function MappingCouriers() {
                   name: '쿠팡 택배사명',
                   desc: '쿠팡에 업로드할 때 넣을 이름',
                   required: true,
-                  example: 'CJ대한통운',
+                  example: 'CJ 대한통운',
                 },
                 {
                   name: '토스 택배사명',
@@ -1354,14 +1349,15 @@ function MappingCouriers() {
           </div>
 
           <InfoBox>
-            택배사 매핑이 없으면 공급처가 운송장에 적은 이름이 그대로
-            쿠팡/토스에 들어갑니다. 이름이 안 맞으면 플랫폼에서 오류가 날 수
-            있으니 등록해두는 게 좋습니다.
+            택배사 매핑이 없으면 운송장에 적힌 이름이 그대로 쿠팡/토스에
+            들어갑니다. 이름이 안 맞으면 플랫폼에서 오류가 날 수 있으니
+            등록해두는 게 좋습니다.
           </InfoBox>
 
           <InfoBox>
-            같은 공급처에서 택배사를 여러 개 쓰면? 각 택배사별로 따로
-            등록하세요. 예: A농장이 CJ랑 한진을 둘 다 쓰면 → 2개 매핑 등록
+            한 번 등록하면 어떤 공급처의 운송장이든 동일하게 적용됩니다. 예:
+            &quot;대한통운&quot;을 등록하면 A농장, B농장 어디서 보내든 자동
+            변환됩니다.
           </InfoBox>
         </div>
       </CollapsibleSection>
