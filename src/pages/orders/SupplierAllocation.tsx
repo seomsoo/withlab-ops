@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef, memo } from 'react'
+import { useState, useMemo, useEffect, useCallback, memo } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import {
@@ -143,7 +143,6 @@ export default function SupplierAllocation() {
   }, [])
 
   const isReadonly = session?.status !== 'active'
-  const autoAllocRan = useRef(false)
 
   const keywordOverrides = useMemo(() => {
     const raw = searchParams.get('overrides')
@@ -155,20 +154,6 @@ export default function SupplierAllocation() {
       return undefined
     }
   }, [searchParams])
-
-  useEffect(() => {
-    if (
-      !allocLoading &&
-      allocations.length === 0 &&
-      unallocatedOrders.length > 0 &&
-      !running &&
-      !isReadonly &&
-      !autoAllocRan.current
-    ) {
-      autoAllocRan.current = true
-      runAutoAllocation(keywordOverrides)
-    }
-  }, [allocLoading, allocations.length, unallocatedOrders.length, running, isReadonly, runAutoAllocation, keywordOverrides])
 
   const suggestedMap = useMemo(() => {
     const map = new Map<string, SuggestedAllocation>()
@@ -448,23 +433,29 @@ export default function SupplierAllocation() {
             </div>
           )}
 
-          {/* 재배정 */}
-          {!isReadonly && allocations.length > 0 && (
+          {/* 자동배정 / 재배정 */}
+          {!isReadonly && (
             <div className="mt-4 flex items-center justify-between rounded-radius-md border border-line bg-bg-subtle px-4 py-2.5">
               <span className="text-xs text-t-mute">
-                배정 결과가 올바르지 않다면 초기화 후 다시 자동 배정할 수 있습니다
+                {allocations.length > 0
+                  ? '배정 결과가 올바르지 않다면 초기화 후 다시 자동 배정할 수 있습니다'
+                  : '자동 배정을 실행하면 매핑 기준으로 공급처를 자동 지정합니다'}
               </span>
               <Button
-                variant="outline"
+                variant={allocations.length > 0 ? 'outline' : 'default'}
                 size="sm"
                 className="h-7 gap-1 text-xs"
                 disabled={running}
                 onClick={() => {
-                  void resetAndRerun(keywordOverrides)
+                  if (allocations.length > 0) {
+                    void resetAndRerun(keywordOverrides)
+                  } else {
+                    void runAutoAllocation(keywordOverrides)
+                  }
                 }}
               >
                 <RotateCcw size={12} />
-                {running ? '배정 중...' : '재배정'}
+                {running ? '배정 중...' : allocations.length > 0 ? '재배정' : '자동배정'}
               </Button>
             </div>
           )}

@@ -5,7 +5,7 @@ import { TopBar } from '@/components/layout/TopBar'
 
 export function AppLayout() {
   return (
-    <div className="grid min-h-screen grid-cols-[240px_1fr]">
+    <div className="grid min-h-[100dvh] grid-cols-[240px_1fr]">
       <Sidebar />
       <main className="flex min-w-0 flex-col">
         <TopBar />

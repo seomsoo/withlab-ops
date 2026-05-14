@@ -222,7 +222,7 @@ export default function ItemReview() {
         <div className="mt-3 flex items-center gap-1.5 text-xs text-t-mute">
           <Info size={14} />
           <span>
-            미선택 품목은 기존 매핑 기준으로 자동 배정됩니다
+            미선택 품목은 미분류로 표시되며, 공급처 배정에서 수동 또는 자동 배정할 수 있습니다
           </span>
         </div>
       </div>
@@ -330,7 +330,7 @@ function ItemRow({
               )}
               <SelectSeparator />
               <SelectItem value="auto" className="text-xs text-t-mute">
-                자동 배정
+                미배정
               </SelectItem>
             </SelectContent>
           </Select>
