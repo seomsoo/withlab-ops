@@ -13,7 +13,7 @@ import { toast } from 'sonner'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { PageSkeleton } from '@/components/ui/PageSkeleton'
+import { TrackingMatchSkeleton } from '@/components/ui/PageSkeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -115,9 +115,9 @@ export default function TrackingMatchResult() {
   useEffect(() => {
     void getTrackingImports(sessionId!).then((imports) => {
       setHasImports(imports.length > 0)
-    })
-    void getCourierMappings().then(setCourierMappings)
-    void getSupplierTrackingProgress(sessionId!).then(setSupplierProgress)
+    }).catch(() => { /* 보조 데이터 — 실패해도 페이지 동작에 영향 없음 */ })
+    void getCourierMappings().then(setCourierMappings).catch(() => {})
+    void getSupplierTrackingProgress(sessionId!).then(setSupplierProgress).catch(() => {})
   }, [sessionId])
 
   const handleBulkIgnoreInvalid = async () => {
@@ -252,7 +252,7 @@ export default function TrackingMatchResult() {
     return (
       <>
         <PageHeader title="매칭 결과" />
-        <PageSkeleton />
+        <TrackingMatchSkeleton />
       </>
     )
   }

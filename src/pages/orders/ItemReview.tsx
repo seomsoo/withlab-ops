@@ -11,7 +11,7 @@ import {
   DollarSign,
 } from 'lucide-react'
 
-import { PageSkeleton } from '@/components/ui/PageSkeleton'
+import { ItemReviewSkeleton } from '@/components/ui/PageSkeleton'
 import { OrderTabs } from '@/components/OrderTabs'
 import { Button } from '@/components/ui/button'
 import {
@@ -118,7 +118,7 @@ export default function ItemReview() {
     navigate(`/orders/${sessionId}/allocation`)
   }, [sessionId, navigate])
 
-  if (sessionLoading || loading) return <PageSkeleton />
+  if (sessionLoading || loading) return <ItemReviewSkeleton />
   if (!session || !sessionId) return null
 
   const isReadonly = session.status !== 'active'

@@ -149,15 +149,27 @@ export async function replaceAllocationsForGroup(
   orderIds: string[],
   newAllocations: PendingAllocation[]
 ): Promise<Allocation[]> {
-  const { error: deleteError } = await supabase
-    .from('allocations')
-    .delete()
-    .eq('work_session_id', workSessionId)
-    .in('order_id', orderIds)
+  const jsonbPayload = newAllocations.map((a) => ({
+    order_id: a.orderId,
+    supplier_id: a.supplierId,
+    supplier_product_name: a.supplierProductName,
+    supplier_product_code: a.supplierProductCode ?? null,
+    allocated_quantity: a.allocatedQuantity,
+    is_temporary_override: a.isTemporaryOverride,
+    name_mapping_applied: a.nameMappingApplied,
+    smart_allocation_applied: a.smartAllocationApplied,
+    supplier_price: a.supplierPrice ?? null,
+    allocation_reason: a.allocationReason ?? null,
+  }))
 
-  if (deleteError) throw new Error(`기존 배정 삭제 실패: ${deleteError.message}`)
+  const { data, error } = await supabase.rpc('replace_allocations_for_group', {
+    p_work_session_id: workSessionId,
+    p_order_ids: orderIds,
+    p_new_allocations: jsonbPayload,
+  })
 
-  return createAllocations(workSessionId, newAllocations)
+  if (error) throw new Error(`배정 교체 실패: ${error.message}`)
+  return ((data ?? []) as AllocationRow[]).map(toAllocation)
 }
 
 export async function updateGroupSupplierProduct(input: {

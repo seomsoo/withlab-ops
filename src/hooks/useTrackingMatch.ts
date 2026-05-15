@@ -25,14 +25,18 @@ export function useTrackingMatch(workSessionId: string) {
   const [filter, setFilter] = useState<TrackingStatus | 'all'>('all')
 
   const fetchData = useCallback(async () => {
-    const [trackingData, statsData, imports] = await Promise.all([
-      getTrackings(workSessionId),
-      getTrackingStats(workSessionId),
-      getTrackingImports(workSessionId),
-    ])
-    setTrackings(trackingData)
-    setStats(statsData)
-    setParserInvalidRows(imports.flatMap((i) => i.invalidRows ?? []))
+    try {
+      const [trackingData, statsData, imports] = await Promise.all([
+        getTrackings(workSessionId),
+        getTrackingStats(workSessionId),
+        getTrackingImports(workSessionId),
+      ])
+      setTrackings(trackingData)
+      setStats(statsData)
+      setParserInvalidRows(imports.flatMap((i) => i.invalidRows ?? []))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '데이터 조회 실패')
+    }
   }, [workSessionId])
 
   useEffect(() => {

@@ -12,7 +12,7 @@ import {
   Info,
 } from 'lucide-react'
 
-import { PageSkeleton } from '@/components/ui/PageSkeleton'
+import { AllocationSkeleton } from '@/components/ui/PageSkeleton'
 import { OrderTabs } from '@/components/OrderTabs'
 import { PlatformBadge } from '@/components/PlatformBadge'
 import { Button } from '@/components/ui/button'
@@ -98,6 +98,18 @@ export default function SupplierAllocation() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { session, loading: sessionLoading } = useWorkSession(sessionId)
+
+  const keywordOverrides = useMemo(() => {
+    const raw = searchParams.get('overrides')
+    if (!raw) return undefined
+    try {
+      const obj = JSON.parse(raw) as Record<string, string>
+      return new Map(Object.entries(obj))
+    } catch {
+      return undefined
+    }
+  }, [searchParams])
+
   const {
     allocations,
     unallocatedOrders,
@@ -111,7 +123,7 @@ export default function SupplierAllocation() {
     applySuggested,
     distributeGroup,
     changeSupplierProduct,
-  } = useAllocation(sessionId ?? '')
+  } = useAllocation(sessionId ?? '', keywordOverrides)
   const { suppliers } = useSuppliers()
   const { dictionaries: fruitDictionary } = useFruitDictionary(true)
 
@@ -143,17 +155,6 @@ export default function SupplierAllocation() {
   }, [])
 
   const isReadonly = session?.status !== 'active'
-
-  const keywordOverrides = useMemo(() => {
-    const raw = searchParams.get('overrides')
-    if (!raw) return undefined
-    try {
-      const obj = JSON.parse(raw) as Record<string, string>
-      return new Map(Object.entries(obj))
-    } catch {
-      return undefined
-    }
-  }, [searchParams])
 
   const suggestedMap = useMemo(() => {
     const map = new Map<string, SuggestedAllocation>()
@@ -326,7 +327,7 @@ export default function SupplierAllocation() {
   )
 
   if (sessionLoading || allocLoading) {
-    return <PageSkeleton />
+    return <AllocationSkeleton />
   }
 
   if (!session || !sessionId) {

@@ -154,28 +154,11 @@ export async function overwriteTrackingMatch(
   trackingId: string,
   allocationId: string
 ): Promise<void> {
-  const { error: demoteErr } = await supabase
-    .from('trackings')
-    .update({
-      status: 'duplicated',
-      invalid_reason: '수동 매칭으로 대체됨',
-    })
-    .eq('allocation_id', allocationId)
-    .eq('status', 'matched')
-
-  if (demoteErr) throw new Error(`기존 매칭 해제 실패: ${demoteErr.message}`)
-
-  const { error } = await supabase
-    .from('trackings')
-    .update({
-      status: 'matched',
-      allocation_id: allocationId,
-      matched_at: new Date().toISOString(),
-      invalid_reason: null,
-    })
-    .eq('id', trackingId)
-
-  if (error) throw new Error(`수동 매칭 실패: ${error.message}`)
+  const { error } = await supabase.rpc('overwrite_tracking_match', {
+    p_tracking_id: trackingId,
+    p_allocation_id: allocationId,
+  })
+  if (error) throw new Error(`수동 매칭 덮어쓰기 실패: ${error.message}`)
 }
 
 export async function getTrackingStats(

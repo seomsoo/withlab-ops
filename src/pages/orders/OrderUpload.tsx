@@ -18,7 +18,7 @@ import {
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
-import { CardGridSkeleton } from '@/components/ui/PageSkeleton'
+import { OrderUploadSkeleton } from '@/components/ui/PageSkeleton'
 import { PlatformBadge } from '@/components/PlatformBadge'
 import { OrderTabs } from '@/components/OrderTabs'
 import { Button } from '@/components/ui/button'
@@ -129,10 +129,7 @@ export default function OrderUpload() {
 
   if (sessionLoading || upload.loading) {
     return (
-      <>
-        <PageHeader title="발주서" />
-        <CardGridSkeleton count={2} />
-      </>
+      <OrderUploadSkeleton />
     )
   }
 

@@ -10,7 +10,7 @@ import {
   Trash2,
 } from 'lucide-react'
 
-import { CardGridSkeleton } from '@/components/ui/PageSkeleton'
+import { OrderDownloadSkeleton } from '@/components/ui/PageSkeleton'
 import { OrderTabs } from '@/components/OrderTabs'
 import { Button } from '@/components/ui/button'
 import {
@@ -135,7 +135,7 @@ export default function OrderDownload() {
   }, [po, deleteTarget, refetchAllocations])
 
   if (sessionLoading || allocLoading) {
-    return <CardGridSkeleton count={3} />
+    return <OrderDownloadSkeleton />
   }
 
   if (!session || !sessionId) {

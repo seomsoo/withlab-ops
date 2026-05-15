@@ -23,7 +23,7 @@ import type { AllocationWithOrder } from '@/lib/supabase/allocations'
 import type { PendingAllocation, SuggestedAllocation } from '@/lib/allocation/autoAllocator'
 import type { StandardOrder, Platform, SupplierProduct } from '@/types'
 
-export function useAllocation(workSessionId: string) {
+export function useAllocation(workSessionId: string, initialOverrides?: Map<string, string>) {
   const [allocations, setAllocations] = useState<AllocationWithOrder[]>([])
   const [unallocatedOrders, setUnallocatedOrders] = useState<StandardOrder[]>([])
   const [suggested, setSuggested] = useState<SuggestedAllocation[]>([])
@@ -95,7 +95,38 @@ export function useAllocation(workSessionId: string) {
         if (!alive) return
         setUnallocatedOrders(unalloc)
 
-        if (unalloc.length > 0 && data.length > 0) {
+        if (unalloc.length > 0 && data.length === 0 && initialOverrides && initialOverrides.size > 0) {
+          const [orders, productMappingsRaw, nameMappingsRaw, suppliers, supplierProducts, fruitDictionary] =
+            await Promise.all([
+              getOrders(workSessionId),
+              getProductMappings(),
+              getNameMappings(),
+              getAllSuppliers(),
+              getAllSupplierProducts(),
+              getFruitDictionaries(),
+            ])
+          if (!alive) return
+          const result = autoAllocate({
+            orders,
+            productMappings: productMappingsRaw,
+            nameMappings: nameMappingsRaw,
+            suppliers,
+            supplierProducts,
+            fruitDictionary,
+            keywordOverrides: initialOverrides,
+          })
+          if (result.allocated.length > 0) {
+            await createAllocations(workSessionId, result.allocated)
+          }
+          if (!alive) return
+          const freshData = await getAllocations(workSessionId)
+          if (!alive) return
+          setAllocations(freshData)
+          const freshUnalloc = await getUnallocatedOrders(workSessionId)
+          if (!alive) return
+          setUnallocatedOrders(freshUnalloc)
+          setSuggested(result.suggested)
+        } else if (unalloc.length > 0 && data.length > 0) {
           const [productMappingsRaw, nameMappingsRaw, suppliers, supplierProducts, fruitDictionary] =
             await Promise.all([
               getProductMappings(),
@@ -125,7 +156,7 @@ export function useAllocation(workSessionId: string) {
       }
     })()
     return () => { alive = false }
-  }, [workSessionId])
+  }, [workSessionId, initialOverrides])
 
   const runAutoAllocation = useCallback(async (keywordOverrides?: Map<string, string>) => {
     if (!workSessionId) return

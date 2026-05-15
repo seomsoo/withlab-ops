@@ -296,8 +296,12 @@ export function useTrackingUpload(workSessionId: string) {
 
   const removeImport = useCallback(
     async (importId: string) => {
-      await deleteTrackingImport(importId)
-      setTrackingImports((prev) => prev.filter((i) => i.id !== importId))
+      try {
+        await deleteTrackingImport(importId)
+        setTrackingImports((prev) => prev.filter((i) => i.id !== importId))
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '삭제 실패')
+      }
     },
     []
   )

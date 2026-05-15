@@ -21,7 +21,6 @@ import type {
 
 type PlatformExportData = {
   count: number
-  unmatchedCount: number
   labels: string[]
   countByLabel: Record<string, number>
 }
@@ -30,9 +29,11 @@ export function useTrackingExport(workSessionId: string) {
   const [exportData, setExportData] = useState<{
     coupang: PlatformExportData
     toss: PlatformExportData
+    unmatchedCount: number
   }>({
-    coupang: { count: 0, unmatchedCount: 0, labels: [], countByLabel: {} },
-    toss: { count: 0, unmatchedCount: 0, labels: [], countByLabel: {} },
+    coupang: { count: 0, labels: [], countByLabel: {} },
+    toss: { count: 0, labels: [], countByLabel: {} },
+    unmatchedCount: 0,
   })
   const [courierWarnings, setCourierWarnings] = useState<CourierWarning[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -96,16 +97,15 @@ export function useTrackingExport(workSessionId: string) {
         setExportData({
           coupang: {
             count: coupangCount,
-            unmatchedCount: totalUnmatched,
             labels: Object.keys(coupangLabelCounts),
             countByLabel: coupangLabelCounts,
           },
           toss: {
             count: tossCount,
-            unmatchedCount: totalUnmatched,
             labels: Object.keys(tossLabelCounts),
             countByLabel: tossLabelCounts,
           },
+          unmatchedCount: totalUnmatched,
         })
         setCourierWarnings(warnings)
       } catch (err) {
@@ -164,7 +164,7 @@ export function useTrackingExport(workSessionId: string) {
           items.push({
             trackingId: t.id,
             allocationId: t.allocationId,
-            orderId: alloc.id,
+            orderId: alloc.orderId,
             orderNo: alloc.order.orderNo,
             orderItemNo: alloc.order.orderItemNo,
             matchingKey: alloc.order.matchingKey,

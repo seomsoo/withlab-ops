@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -34,6 +34,7 @@ export function CreateWorkSessionDialog({
   const [name, setName] = useState('')
   const [creating, setCreating] = useState(false)
   const [prevOpen, setPrevOpen] = useState(false)
+  const submittingRef = useRef(false)
 
   if (open && !prevOpen) {
     setName(defaultName ?? getDefaultWorkSessionName())
@@ -44,7 +45,8 @@ export function CreateWorkSessionDialog({
 
   const handleCreate = async () => {
     const trimmed = name.trim()
-    if (!trimmed) return
+    if (!trimmed || submittingRef.current) return
+    submittingRef.current = true
     try {
       setCreating(true)
       const session = await onCreate(trimmed)
@@ -53,6 +55,7 @@ export function CreateWorkSessionDialog({
     } catch {
       // toast handled by caller
     } finally {
+      submittingRef.current = false
       setCreating(false)
     }
   }
@@ -70,7 +73,10 @@ export function CreateWorkSessionDialog({
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void handleCreate()
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                void handleCreate()
+              }
             }}
             placeholder="예: 2026-05-10 오전"
           />

@@ -12,6 +12,9 @@ export async function getSupplierEnrichments(): Promise<Map<string, SupplierEnri
     supabase.from('supplier_products').select('supplier_id, price'),
   ])
 
+  if (mappings.error) throw new Error(`품목 매핑 조회 실패: ${mappings.error.message}`)
+  if (products.error) throw new Error(`공급처 상품 조회 실패: ${products.error.message}`)
+
   const map = new Map<string, SupplierEnrichment>()
 
   for (const m of mappings.data ?? []) {

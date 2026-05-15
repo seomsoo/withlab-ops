@@ -77,6 +77,8 @@ export default function TrackingDownload() {
         toss: !!tossTpl,
       })
       setSupplierProgress(progress)
+    }).catch((err) => {
+      toast.error(err instanceof Error ? err.message : '데이터 로딩 실패')
     })
   }, [sessionId])
 
@@ -124,13 +126,20 @@ export default function TrackingDownload() {
   const handleDownloadAll = useCallback(async () => {
     setDownloading('all')
     try {
+      let downloaded = 0
       if (exportData.coupang.count > 0 && templateStatus.coupang) {
         await handleDownloadAllLabels('coupang')
+        downloaded++
       }
       if (exportData.toss.count > 0 && templateStatus.toss) {
         await handleDownloadAllLabels('toss')
+        downloaded++
       }
-      toast.success('전체 다운로드 완료')
+      if (downloaded > 0) {
+        toast.success('전체 다운로드 완료')
+      } else {
+        toast.warning('다운로드할 파일이 없습니다. 양식을 먼저 등록해 주세요.')
+      }
     } catch {
       // handled in hook
     } finally {
@@ -166,8 +175,7 @@ export default function TrackingDownload() {
   if (!session) return null
 
   const totalMatched = exportData.coupang.count + exportData.toss.count
-  const totalUnmatched =
-    exportData.coupang.unmatchedCount + exportData.toss.unmatchedCount
+  const totalUnmatched = exportData.unmatchedCount
 
   return (
     <>
@@ -257,7 +265,6 @@ export default function TrackingDownload() {
             platform="coupang"
             label="쿠팡"
             count={exportData.coupang.count}
-            unmatchedCount={exportData.coupang.unmatchedCount}
             downloading={downloading}
             hasTemplate={templateStatus.coupang}
             labels={exportData.coupang.labels}
@@ -269,7 +276,6 @@ export default function TrackingDownload() {
             platform="toss"
             label="토스"
             count={exportData.toss.count}
-            unmatchedCount={exportData.toss.unmatchedCount}
             downloading={downloading}
             hasTemplate={templateStatus.toss}
             labels={exportData.toss.labels}
@@ -374,7 +380,6 @@ function PlatformCard({
   platform,
   label,
   count,
-  unmatchedCount,
   downloading,
   hasTemplate,
   labels,
@@ -385,7 +390,6 @@ function PlatformCard({
   platform: Platform
   label: string
   count: number
-  unmatchedCount: number
   downloading: string | null
   hasTemplate: boolean
   labels: string[]
@@ -431,12 +435,6 @@ function PlatformCard({
           </div>
         ) : (
           <div className="text-xs text-t-mute">파일에 포함되는 매칭 건수</div>
-        )}
-        {unmatchedCount > 0 && (
-          <div className="mt-1 flex items-center gap-1 text-xs text-amber-600">
-            <AlertCircle size={12} />
-            미매칭 {unmatchedCount}건은 파일에서 제외
-          </div>
         )}
       </div>
 

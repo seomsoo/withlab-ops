@@ -21,9 +21,15 @@ export type MatchingInput = {
 export function runMatching(input: MatchingInput): MatchingResult {
   const { parsedTrackings, orders, allocations, existingTrackings, sourceSupplierId } = input
 
-  const ordersByMatchingKey = new Map<string, StandardOrder>()
+  const ordersByMatchingKey = new Map<string, StandardOrder[]>()
   for (const order of orders) {
-    ordersByMatchingKey.set(order.matchingKey.trim(), order)
+    const key = order.matchingKey.trim()
+    const existing = ordersByMatchingKey.get(key)
+    if (existing) {
+      existing.push(order)
+    } else {
+      ordersByMatchingKey.set(key, [order])
+    }
   }
 
   const MATCHABLE_STATUSES: Allocation['status'][] = ['pending', 'ordered']
@@ -59,8 +65,8 @@ export function runMatching(input: MatchingInput): MatchingResult {
     }
 
     const trimmedKey = pt.rawOrderKey.trim()
-    const order = ordersByMatchingKey.get(trimmedKey)
-    if (!order) {
+    const matchingOrders = ordersByMatchingKey.get(trimmedKey)
+    if (!matchingOrders || matchingOrders.length === 0) {
       unmatched.push({
         ...pt,
         status: 'unmatched',
@@ -69,6 +75,16 @@ export function runMatching(input: MatchingInput): MatchingResult {
       continue
     }
 
+    if (matchingOrders.length > 1) {
+      unmatched.push({
+        ...pt,
+        status: 'unmatched',
+        invalidReason: '동일 주문키가 여러 주문에 존재',
+      })
+      continue
+    }
+
+    const order = matchingOrders[0]!
     const allocKey = `${order.id}:${sourceSupplierId}`
     const allocation = allocationByOrderAndSupplier.get(allocKey)
     if (!allocation) {

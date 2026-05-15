@@ -33,7 +33,7 @@ export function MappingLayout() {
   const [stats, setStats] = useState<MappingStats | null>(null)
 
   useEffect(() => {
-    void getMappingStats().then(setStats)
+    void getMappingStats().then(setStats).catch(() => {})
   }, [pathname])
 
   return (
