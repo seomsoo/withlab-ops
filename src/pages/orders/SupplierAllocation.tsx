@@ -129,7 +129,7 @@ export default function SupplierAllocation() {
 
   const [filter, setFilter] = useState<FilterType>('all')
   const [supplierFilter, setSupplierFilter] = useState<string>('all')
-  const [sortMode, setSortMode] = useState<'name' | 'count' | 'supplier'>('name')
+  const [sortMode, setSortMode] = useState<'name' | 'count' | 'supplier'>('count')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [distributeDialog, setDistributeDialog] = useState<AllocationGroup | null>(null)
   const [refreshOpen, setRefreshOpen] = useState(false)
