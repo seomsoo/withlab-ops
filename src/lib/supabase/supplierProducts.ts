@@ -18,12 +18,26 @@ export async function getSupplierProducts(
 }
 
 export async function getAllSupplierProducts(): Promise<SupplierProduct[]> {
-  const { data, error } = await supabase
-    .from('supplier_products')
-    .select('*')
+  const PAGE_SIZE = 1000
+  const allRows: SupplierProductRow[] = []
+  let from = 0
 
-  if (error) throw new Error(`전체 공급처 상품 조회 실패: ${error.message}`)
-  return (data as SupplierProductRow[]).map(toSupplierProduct)
+  while (true) {
+    const { data, error } = await supabase
+      .from('supplier_products')
+      .select('*')
+      .order('uploaded_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) throw new Error(`전체 공급처 상품 조회 실패: ${error.message}`)
+    const rows = (data ?? []) as SupplierProductRow[]
+    allRows.push(...rows)
+    if (rows.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
+  return allRows.map(toSupplierProduct)
 }
 
 export async function replaceSupplierProducts(

@@ -6,19 +6,41 @@ export type SupplierEnrichment = {
   avgPrice: number | null
 }
 
-export async function getSupplierEnrichments(): Promise<Map<string, SupplierEnrichment>> {
-  const [mappings, products] = await Promise.all([
-    supabase.from('product_mappings').select('supplier_id'),
-    supabase.from('supplier_products').select('supplier_id, price'),
-  ])
+async function fetchAllRows<T>(
+  table: string,
+  select: string
+): Promise<T[]> {
+  const PAGE_SIZE = 1000
+  const allRows: T[] = []
+  let from = 0
 
-  if (mappings.error) throw new Error(`품목 매핑 조회 실패: ${mappings.error.message}`)
-  if (products.error) throw new Error(`공급처 상품 조회 실패: ${products.error.message}`)
+  while (true) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .order('id', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) throw new Error(`${table} 조회 실패: ${error.message}`)
+    const rows = (data ?? []) as T[]
+    allRows.push(...rows)
+    if (rows.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
+  return allRows
+}
+
+export async function getSupplierEnrichments(): Promise<Map<string, SupplierEnrichment>> {
+  const [mappingsData, productsData] = await Promise.all([
+    fetchAllRows<{ supplier_id: string }>('product_mappings', 'supplier_id'),
+    fetchAllRows<{ supplier_id: string; price: number | null }>('supplier_products', 'supplier_id, price'),
+  ])
 
   const map = new Map<string, SupplierEnrichment>()
 
-  for (const m of mappings.data ?? []) {
-    const id = m.supplier_id as string
+  for (const m of mappingsData) {
+    const id = m.supplier_id
     const existing = map.get(id)
     if (existing) {
       existing.mappingCount++
@@ -28,9 +50,9 @@ export async function getSupplierEnrichments(): Promise<Map<string, SupplierEnri
   }
 
   const priceSums = new Map<string, { total: number; count: number }>()
-  for (const p of products.data ?? []) {
-    const id = p.supplier_id as string
-    const price = p.price as number | null
+  for (const p of productsData) {
+    const id = p.supplier_id
+    const price = p.price
     if (price == null) continue
     const existing = priceSums.get(id)
     if (existing) {

@@ -70,20 +70,6 @@ export async function getAllocationFrequency(
   const since = new Date()
   since.setDate(since.getDate() - days)
 
-  const { data, error } = await supabase
-    .from('allocations')
-    .select(`
-      supplier_id,
-      suppliers!inner(name),
-      orders!inner(product_name),
-      work_sessions!inner(status, created_at)
-    `)
-    .in('work_sessions.status', ['ordered', 'completed'])
-    .gte('work_sessions.created_at', since.toISOString())
-
-  if (error) throw new Error(`빈도 조회 실패: ${error.message}`)
-  if (!data) return new Map()
-
   type FreqRow = {
     supplier_id: string
     suppliers: { name: string }
@@ -91,9 +77,34 @@ export async function getAllocationFrequency(
     work_sessions: { status: string; created_at: string }
   }
 
+  const PAGE_SIZE = 1000
+  const allRows: FreqRow[] = []
+  let from = 0
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('allocations')
+      .select(`
+        supplier_id,
+        suppliers!inner(name),
+        orders!inner(product_name),
+        work_sessions!inner(status, created_at)
+      `)
+      .in('work_sessions.status', ['ordered', 'completed'])
+      .gte('work_sessions.created_at', since.toISOString())
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE_SIZE - 1)
+
+    if (error) throw new Error(`빈도 조회 실패: ${error.message}`)
+    const rows = (data ?? []) as unknown as FreqRow[]
+    allRows.push(...rows)
+    if (rows.length < PAGE_SIZE) break
+    from += PAGE_SIZE
+  }
+
   const counter = new Map<string, Map<string, { name: string; count: number }>>()
 
-  for (const row of data as unknown as FreqRow[]) {
+  for (const row of allRows) {
     const productName = row.orders.product_name
     if (!counter.has(productName)) {
       counter.set(productName, new Map())
