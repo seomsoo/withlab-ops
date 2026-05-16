@@ -128,6 +128,8 @@ export default function SupplierAllocation() {
   const { dictionaries: fruitDictionary } = useFruitDictionary(true)
 
   const [filter, setFilter] = useState<FilterType>('all')
+  const [supplierFilter, setSupplierFilter] = useState<string>('all')
+  const [sortMode, setSortMode] = useState<'name' | 'count' | 'supplier'>('name')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [distributeDialog, setDistributeDialog] = useState<AllocationGroup | null>(null)
   const [refreshOpen, setRefreshOpen] = useState(false)
@@ -233,8 +235,21 @@ export default function SupplierAllocation() {
       }
     }
 
-    return Array.from(groupMap.values())
-  }, [allocations, unallocatedOrders, suggestedMap])
+    const arr = Array.from(groupMap.values())
+    switch (sortMode) {
+      case 'count':
+        return arr.sort((a, b) => b.orderCount - a.orderCount ||
+          a.productName.localeCompare(b.productName, 'ko'))
+      case 'supplier':
+        return arr.sort((a, b) =>
+          (a.supplierName ?? '').localeCompare(b.supplierName ?? '', 'ko') ||
+          a.productName.localeCompare(b.productName, 'ko'))
+      default:
+        return arr.sort((a, b) =>
+          a.productName.localeCompare(b.productName, 'ko') ||
+          a.optionName.localeCompare(b.optionName, 'ko'))
+    }
+  }, [allocations, unallocatedOrders, suggestedMap, sortMode])
 
   const counts = useMemo(() => {
     return {
@@ -246,10 +261,28 @@ export default function SupplierAllocation() {
     }
   }, [groups])
 
+  const assignedSuppliers = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const g of groups) {
+      if (g.supplierId && g.supplierName) {
+        seen.set(g.supplierId, g.supplierName)
+      }
+    }
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  }, [groups])
+
   const filteredGroups = useMemo(() => {
-    if (filter === 'all') return groups
-    return groups.filter((g) => g.status === filter)
-  }, [groups, filter])
+    let result = groups
+    if (filter !== 'all') {
+      result = result.filter((g) => g.status === filter)
+    }
+    if (supplierFilter !== 'all') {
+      result = result.filter((g) => g.supplierId === supplierFilter)
+    }
+    return result
+  }, [groups, filter, supplierFilter])
 
   const toggleGroup = useCallback((key: string) => {
     setExpandedGroups((prev) => {
@@ -554,6 +587,33 @@ export default function SupplierAllocation() {
                 </button>
               )
             )}
+            <div className="ml-auto flex items-center gap-2">
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as 'name' | 'count' | 'supplier')}>
+                <SelectTrigger className="h-8 w-32 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">가나다순</SelectItem>
+                  <SelectItem value="count">건수 많은 순</SelectItem>
+                  <SelectItem value="supplier">공급처별</SelectItem>
+                </SelectContent>
+              </Select>
+              {assignedSuppliers.length > 0 && (
+                <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                  <SelectTrigger className="h-8 w-40 text-xs">
+                    <SelectValue placeholder="공급처 필터" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체 공급처</SelectItem>
+                    {assignedSuppliers.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
           </div>
 
           {/* Summary */}
