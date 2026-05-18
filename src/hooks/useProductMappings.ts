@@ -6,6 +6,7 @@ import {
   createProductMapping,
   updateProductMapping,
   deleteProductMapping,
+  switchDefaultSupplier,
 } from '@/lib/supabase/productMappings'
 
 import type { ProductMappingWithSupplier, ProductMappingFormData } from '@/lib/schemas'
@@ -106,5 +107,26 @@ export function useProductMappings() {
     [refetch]
   )
 
-  return { mappings, loading, error, refetch, create, update, remove }
+  const switchDefault = useCallback(
+    async (mapping: ProductMappingWithSupplier) => {
+      try {
+        await switchDefaultSupplier({
+          platform: mapping.platform,
+          productName: mapping.productName,
+          optionName: mapping.optionName,
+          newSupplierId: mapping.supplierId,
+        })
+        toast.success(`기본 공급처를 ${mapping.supplierName}(으)로 변경했습니다`)
+        await refetch()
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : '기본 공급처 변경 실패'
+        toast.error(message)
+        throw err
+      }
+    },
+    [refetch]
+  )
+
+  return { mappings, loading, error, refetch, create, update, remove, switchDefault }
 }

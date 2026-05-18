@@ -10,7 +10,7 @@ import {
   getUnallocatedOrders,
   deleteAllAllocations,
 } from '@/lib/supabase/allocations'
-import { getProductMappings, switchDefaultSupplier, createAutoProductMapping } from '@/lib/supabase/productMappings'
+import { getProductMappings, switchDefaultSupplier, createProductMappingsBulk } from '@/lib/supabase/productMappings'
 import { getNameMappings } from '@/lib/supabase/nameMappings'
 import { getAllSuppliers } from '@/lib/supabase/suppliers'
 import { getAllSupplierProducts } from '@/lib/supabase/supplierProducts'
@@ -330,6 +330,7 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
       try {
         const nameMappingsAll = await getNameMappings()
         const pendingAllocations: PendingAllocation[] = []
+        const mappingItems: Array<{ platform: Platform; productName: string; optionName: string; supplierId: string }> = []
 
         for (const orderId of orderIds) {
           const order = unallocatedOrders.find((o) => o.id === orderId)
@@ -369,20 +370,32 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
             supplierPrice: resolvedPrice,
           })
 
-          try {
-            await createAutoProductMapping({
-              platform: order.platform,
-              productName: order.productName,
-              optionName: order.optionName,
-              supplierId,
-            })
-          } catch {
-            // unique constraint → mapping already exists
-          }
+          mappingItems.push({
+            platform: order.platform,
+            productName: order.productName,
+            optionName: order.optionName,
+            supplierId,
+          })
         }
 
         if (pendingAllocations.length > 0) {
           await createAllocations(workSessionId, pendingAllocations)
+        }
+
+        if (mappingItems.length > 0) {
+          const seen = new Set<string>()
+          const deduped = mappingItems.filter((item) => {
+            const key = `${item.platform}::${item.productName}::${item.optionName}::${item.supplierId}`
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+          try {
+            await createProductMappingsBulk(deduped)
+          } catch (err) {
+            console.error('매핑 자동 저장 실패:', err)
+            toast.warning('배정은 완료했지만 매핑 자동 저장에 실패했습니다')
+          }
         }
 
         await fetchAllocations()
@@ -401,6 +414,8 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
     async (orderIds: string[]) => {
       try {
         const pendingAllocations: PendingAllocation[] = []
+        const mappingItems: Array<{ platform: Platform; productName: string; optionName: string; supplierId: string }> = []
+
         for (const orderId of orderIds) {
           const sug = suggested.find((s) => s.orderId === orderId)
           if (!sug || sug.candidates.length === 0) continue
@@ -420,10 +435,33 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
             supplierPrice: best.supplierProduct.price ?? undefined,
             allocationReason: `추천 적용 (score: ${best.score.toFixed(2)})`,
           })
+
+          mappingItems.push({
+            platform: order.platform,
+            productName: order.productName,
+            optionName: order.optionName,
+            supplierId: best.supplier.id,
+          })
         }
 
         if (pendingAllocations.length > 0) {
           await createAllocations(workSessionId, pendingAllocations)
+        }
+
+        if (mappingItems.length > 0) {
+          const seen = new Set<string>()
+          const deduped = mappingItems.filter((item) => {
+            const key = `${item.platform}::${item.productName}::${item.optionName}::${item.supplierId}`
+            if (seen.has(key)) return false
+            seen.add(key)
+            return true
+          })
+          try {
+            await createProductMappingsBulk(deduped)
+          } catch (err) {
+            console.error('매핑 자동 저장 실패:', err)
+            toast.warning('추천 적용은 완료했지만 매핑 자동 저장에 실패했습니다')
+          }
         }
 
         setSuggested((prev) => prev.filter((s) => !orderIds.includes(s.orderId)))

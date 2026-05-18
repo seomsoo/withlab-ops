@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Search, X, Check, AlertCircle } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, X, Check, AlertCircle, Star } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -70,7 +70,7 @@ const EMPTY_FORM: ProductMappingFormData = {
 }
 
 export default function ProductMapping() {
-  const { mappings, loading: mappingsLoading, create, update, remove, refetch } = useProductMappings()
+  const { mappings, loading: mappingsLoading, create, update, remove, switchDefault, refetch } = useProductMappings()
   const { suppliers, loading: suppliersLoading } = useSuppliers()
 
   const [search, setSearch] = useState('')
@@ -138,6 +138,16 @@ export default function ProductMapping() {
   }
 
   const loading = mappingsLoading || suppliersLoading
+
+  const defaultCountByProduct = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const m of mappings) {
+      if (!m.isDefault) continue
+      const key = `${m.platform}::${m.productName}::${m.optionName}`
+      counts.set(key, (counts.get(key) ?? 0) + 1)
+    }
+    return counts
+  }, [mappings])
 
   const filtered = useMemo(() => {
     return mappings
@@ -384,11 +394,29 @@ export default function ProductMapping() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {m.isDefault ? (
-                          <Check size={16} className="text-success" />
-                        ) : (
-                          <span className="text-t-mute">—</span>
-                        )}
+                        {(() => {
+                          const productKey = `${m.platform}::${m.productName}::${m.optionName}`
+                          const defaultCount = defaultCountByProduct.get(productKey) ?? 0
+                          const hasDuplicateDefaults = m.isDefault && defaultCount > 1
+
+                          if (m.isDefault && !hasDuplicateDefaults) {
+                            return <Check size={16} className="text-success" />
+                          }
+                          return (
+                            <button
+                              className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
+                                hasDuplicateDefaults
+                                  ? 'text-warning-dark hover:bg-warning-light'
+                                  : 'text-t-mute hover:bg-primary-50 hover:text-primary'
+                              }`}
+                              onClick={() => void switchDefault(m)}
+                              title={hasDuplicateDefaults ? '기본 공급처가 중복됨 — 클릭하여 이 공급처를 기본으로 확정' : '기본 공급처로 설정'}
+                            >
+                              <Star size={12} />
+                              {hasDuplicateDefaults ? '기본확정' : '기본설정'}
+                            </button>
+                          )
+                        })()}
                       </TableCell>
                       <TableCell>
                         <span className="inline-block rounded-md bg-gray-200 px-2 py-0.5 font-mono text-xs font-bold text-t-mid">
