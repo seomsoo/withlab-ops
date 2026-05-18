@@ -29,6 +29,7 @@ export function runDirectMatching(input: DirectMatchingInput): DirectMatchingRes
   const { parsedTrackings, orders, alreadyMatchedOrderIds } = input
 
   const ordersByMatchingKey = new Map<string, StandardOrder[]>()
+  const ordersByOrderNo = new Map<string, StandardOrder[]>()
   for (const order of orders) {
     const key = order.matchingKey.trim()
     const existing = ordersByMatchingKey.get(key)
@@ -36,6 +37,16 @@ export function runDirectMatching(input: DirectMatchingInput): DirectMatchingRes
       existing.push(order)
     } else {
       ordersByMatchingKey.set(key, [order])
+    }
+
+    const oNo = order.orderNo.trim()
+    if (oNo && oNo !== key) {
+      const existingByNo = ordersByOrderNo.get(oNo)
+      if (existingByNo) {
+        existingByNo.push(order)
+      } else {
+        ordersByOrderNo.set(oNo, [order])
+      }
     }
   }
 
@@ -57,7 +68,10 @@ export function runDirectMatching(input: DirectMatchingInput): DirectMatchingRes
     }
 
     const trimmedKey = pt.rawOrderKey.trim()
-    const matchingOrders = ordersByMatchingKey.get(trimmedKey)
+    let matchingOrders = ordersByMatchingKey.get(trimmedKey)
+    if (!matchingOrders || matchingOrders.length === 0) {
+      matchingOrders = ordersByOrderNo.get(trimmedKey)
+    }
 
     if (!matchingOrders || matchingOrders.length === 0) {
       unmatched.push({
