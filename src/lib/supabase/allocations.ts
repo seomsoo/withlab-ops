@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
 import { toAllocation, toStandardOrder } from '@/lib/schemas'
+import { chunkArray, fetchAllPages } from '@/lib/supabase/pagination'
+import { toFriendlyDbError } from '@/lib/supabase/errors'
 
 import type { Allocation, StandardOrder, Platform } from '@/types'
 import type { AllocationRow, OrderRow } from '@/lib/schemas'
@@ -51,37 +53,50 @@ export async function createAllocations(
     allocation_reason: a.allocationReason ?? null,
   }))
 
-  const { data, error } = await supabase
-    .from('allocations')
-    .insert(rows)
-    .select()
+  const created: AllocationRow[] = []
+  for (const batch of chunkArray(rows)) {
+    const { data, error } = await supabase
+      .from('allocations')
+      .insert(batch)
+      .select()
 
-  if (error) throw new Error(`배정 생성 실패: ${error.message}`)
-  return (data as AllocationRow[]).map(toAllocation)
+    if (error) throw new Error(toFriendlyDbError(error, 'allocation'))
+    created.push(...((data ?? []) as AllocationRow[]))
+  }
+
+  return created.map(toAllocation)
 }
 
 export async function getAllocations(
   workSessionId: string
 ): Promise<AllocationWithOrder[]> {
-  const { data, error } = await supabase
-    .from('allocations')
-    .select(`
-      *,
-      orders!inner (
-        platform, product_name, option_name, display_product_name,
-        quantity, matching_key,
-        order_no, order_item_no, order_date, recipient_name, recipient_phone,
-        address, zip_code, delivery_message, buyer_name, buyer_phone,
-        raw_values, raw_row_number,
-        order_imports!inner ( label )
-      ),
-      suppliers!inner ( name )
-    `)
-    .eq('work_session_id', workSessionId)
+  const allData = await fetchAllPages<Record<string, unknown>>(
+    async (from, to) => {
+      const { data, error } = await supabase
+        .from('allocations')
+        .select(
+          `
+        *,
+        orders!inner (
+          platform, product_name, option_name, display_product_name,
+          quantity, matching_key,
+          order_no, order_item_no, order_date, recipient_name, recipient_phone,
+          address, zip_code, delivery_message, buyer_name, buyer_phone,
+          raw_values, raw_row_number,
+          order_imports!inner ( label )
+        ),
+        suppliers!inner ( name )
+      `
+        )
+        .eq('work_session_id', workSessionId)
+        .order('id', { ascending: true })
+        .range(from, to)
+      return { data: (data ?? []) as Record<string, unknown>[], error }
+    },
+    '배정 조회 실패'
+  )
 
-  if (error) throw new Error(`배정 조회 실패: ${error.message}`)
-
-  return (data ?? []).map((row: Record<string, unknown>) => {
+  return allData.map((row: Record<string, unknown>) => {
     const alloc = toAllocation(row as AllocationRow)
     const orderRow = row.orders as Record<string, unknown>
     const supplierRow = row.suppliers as { name: string }
@@ -125,23 +140,28 @@ export async function updateGroupSupplier(input: {
   isTemporaryOverride: boolean
   nameMappingApplied: boolean
 }): Promise<Allocation[]> {
-  const { data, error } = await supabase
-    .from('allocations')
-    .update({
-      supplier_id: input.newSupplierId,
-      supplier_product_name: input.supplierProductName,
-      supplier_product_code: input.supplierProductCode ?? null,
-      is_temporary_override: input.isTemporaryOverride,
-      name_mapping_applied: input.nameMappingApplied,
-      smart_allocation_applied: false,
-      supplier_price: input.supplierPrice ?? null,
-    })
-    .eq('work_session_id', input.workSessionId)
-    .in('order_id', input.orderIds)
-    .select()
+  const updated: AllocationRow[] = []
+  for (const orderIds of chunkArray(input.orderIds)) {
+    const { data, error } = await supabase
+      .from('allocations')
+      .update({
+        supplier_id: input.newSupplierId,
+        supplier_product_name: input.supplierProductName,
+        supplier_product_code: input.supplierProductCode ?? null,
+        is_temporary_override: input.isTemporaryOverride,
+        name_mapping_applied: input.nameMappingApplied,
+        smart_allocation_applied: false,
+        supplier_price: input.supplierPrice ?? null,
+      })
+      .eq('work_session_id', input.workSessionId)
+      .in('order_id', orderIds)
+      .select()
 
-  if (error) throw new Error(`공급처 변경 실패: ${error.message}`)
-  return (data as AllocationRow[]).map(toAllocation)
+    if (error) throw new Error(`공급처 변경 실패: ${error.message}`)
+    updated.push(...((data ?? []) as AllocationRow[]))
+  }
+
+  return updated.map(toAllocation)
 }
 
 export async function replaceAllocationsForGroup(
@@ -179,17 +199,19 @@ export async function updateGroupSupplierProduct(input: {
   supplierProductCode?: string
   supplierPrice?: number
 }): Promise<void> {
-  const { error } = await supabase
-    .from('allocations')
-    .update({
-      supplier_product_name: input.supplierProductName,
-      supplier_product_code: input.supplierProductCode ?? null,
-      supplier_price: input.supplierPrice ?? null,
-    })
-    .eq('work_session_id', input.workSessionId)
-    .in('order_id', input.orderIds)
+  for (const orderIds of chunkArray(input.orderIds)) {
+    const { error } = await supabase
+      .from('allocations')
+      .update({
+        supplier_product_name: input.supplierProductName,
+        supplier_product_code: input.supplierProductCode ?? null,
+        supplier_price: input.supplierPrice ?? null,
+      })
+      .eq('work_session_id', input.workSessionId)
+      .in('order_id', orderIds)
 
-  if (error) throw new Error(`상품 변경 실패: ${error.message}`)
+    if (error) throw new Error(`상품 변경 실패: ${error.message}`)
+  }
 }
 
 export async function completeOrder(workSessionId: string): Promise<void> {
@@ -232,21 +254,29 @@ export async function deleteAllAllocations(
 export async function getUnallocatedOrders(
   workSessionId: string
 ): Promise<StandardOrder[]> {
-  const [ordersResult, allocsResult] = await Promise.all([
-    supabase.from('orders').select('*').eq('work_session_id', workSessionId),
-    supabase
-      .from('allocations')
-      .select('order_id')
-      .eq('work_session_id', workSessionId),
+  const [allOrders, allAllocs] = await Promise.all([
+    fetchAllPages<OrderRow>(async (from, to) => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('work_session_id', workSessionId)
+        .order('platform')
+        .order('raw_row_number')
+        .order('id', { ascending: true })
+        .range(from, to)
+      return { data: (data ?? []) as OrderRow[], error }
+    }, '주문 조회 실패'),
+    fetchAllPages<{ order_id: string }>(async (from, to) => {
+      const { data, error } = await supabase
+        .from('allocations')
+        .select('order_id')
+        .eq('work_session_id', workSessionId)
+        .order('id', { ascending: true })
+        .range(from, to)
+      return { data: (data ?? []) as { order_id: string }[], error }
+    }, '배정 조회 실패'),
   ])
 
-  if (ordersResult.error) throw new Error(`주문 조회 실패: ${ordersResult.error.message}`)
-  if (allocsResult.error) throw new Error(`배정 조회 실패: ${allocsResult.error.message}`)
-
-  const allocatedIds = new Set(
-    (allocsResult.data ?? []).map((a: { order_id: string }) => a.order_id)
-  )
-  return (ordersResult.data as OrderRow[])
-    .filter((o) => !allocatedIds.has(o.id))
-    .map(toStandardOrder)
+  const allocatedIds = new Set(allAllocs.map((a) => a.order_id))
+  return allOrders.filter((o) => !allocatedIds.has(o.id)).map(toStandardOrder)
 }

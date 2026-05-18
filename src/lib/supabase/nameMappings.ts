@@ -1,9 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
-import {
-  nameMappingFormSchema,
-  toNameMapping,
-} from '@/lib/schemas'
+import { nameMappingFormSchema, toNameMapping } from '@/lib/schemas'
 import { toFriendlyDbError } from '@/lib/supabase/errors'
+import { fetchAllPages } from '@/lib/supabase/pagination'
 
 import type { NameMapping } from '@/types'
 import type {
@@ -27,14 +25,19 @@ function toNameMappingWithSupplier(
 }
 
 export async function getNameMappings(): Promise<NameMappingWithSupplier[]> {
-  const { data, error } = await supabase
-    .from('name_mappings')
-    .select('*, supplier:suppliers(id, name, is_active)')
-    .order('platform')
-    .order('platform_product_name')
-    .order('platform_option_name')
-  if (error) throw new Error(`상품명 변환 매핑 조회 실패: ${error.message}`)
-  return (data as NameMappingJoinRow[]).map(toNameMappingWithSupplier)
+  const allRows = await fetchAllPages<NameMappingJoinRow>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('name_mappings')
+      .select('*, supplier:suppliers(id, name, is_active)')
+      .order('platform')
+      .order('platform_product_name')
+      .order('platform_option_name')
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data as NameMappingJoinRow[]) ?? [], error }
+  }, '상품명 변환 매핑 조회 실패')
+
+  return allRows.map(toNameMappingWithSupplier)
 }
 
 export async function createNameMapping(
@@ -80,10 +83,7 @@ export async function updateNameMapping(
 }
 
 export async function deleteNameMapping(id: string): Promise<void> {
-  const { error } = await supabase
-    .from('name_mappings')
-    .delete()
-    .eq('id', id)
+  const { error } = await supabase.from('name_mappings').delete().eq('id', id)
   if (error) throw new Error(`상품명 변환 매핑 삭제 실패: ${error.message}`)
 }
 

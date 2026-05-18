@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase/client'
 import { toSupplierProduct } from '@/lib/schemas'
+import { chunkArray, fetchAllPages } from '@/lib/supabase/pagination'
 
 import type { SupplierProduct } from '@/types'
 import type { SupplierProductRow } from '@/lib/schemas'
@@ -7,35 +8,30 @@ import type { SupplierProductRow } from '@/lib/schemas'
 export async function getSupplierProducts(
   supplierId: string
 ): Promise<SupplierProduct[]> {
-  const { data, error } = await supabase
-    .from('supplier_products')
-    .select('*')
-    .eq('supplier_id', supplierId)
-    .order('product_name')
+  const allRows = await fetchAllPages<SupplierProductRow>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('supplier_products')
+      .select('*')
+      .eq('supplier_id', supplierId)
+      .order('product_name')
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data ?? []) as SupplierProductRow[], error }
+  }, '공급처 상품 조회 실패')
 
-  if (error) throw new Error(`공급처 상품 조회 실패: ${error.message}`)
-  return (data as SupplierProductRow[]).map(toSupplierProduct)
+  return allRows.map(toSupplierProduct)
 }
 
 export async function getAllSupplierProducts(): Promise<SupplierProduct[]> {
-  const PAGE_SIZE = 1000
-  const allRows: SupplierProductRow[] = []
-  let from = 0
-
-  while (true) {
+  const allRows = await fetchAllPages<SupplierProductRow>(async (from, to) => {
     const { data, error } = await supabase
       .from('supplier_products')
       .select('*')
       .order('uploaded_at', { ascending: true })
       .order('id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (error) throw new Error(`전체 공급처 상품 조회 실패: ${error.message}`)
-    const rows = (data ?? []) as SupplierProductRow[]
-    allRows.push(...rows)
-    if (rows.length < PAGE_SIZE) break
-    from += PAGE_SIZE
-  }
+      .range(from, to)
+    return { data: (data ?? []) as SupplierProductRow[], error }
+  }, '전체 공급처 상품 조회 실패')
 
   return allRows.map(toSupplierProduct)
 }
@@ -44,25 +40,53 @@ export async function replaceSupplierProducts(
   supplierId: string,
   products: Omit<SupplierProduct, 'id' | 'uploadedAt' | 'supplierId'>[]
 ): Promise<{ count: number }> {
-  const payload = products.map((p) => ({
-    productCode: p.productCode,
-    productName: p.productName,
-    optionName: p.optionName,
+  const existingRows = await fetchAllPages<{ id: string }>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('supplier_products')
+      .select('id')
+      .eq('supplier_id', supplierId)
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data ?? []) as { id: string }[], error }
+  }, '기존 공급처 상품 조회 실패')
+
+  const rows = products.map((p) => ({
+    supplier_id: supplierId,
+    product_code: p.productCode,
+    product_name: p.productName,
+    option_name: p.optionName,
     category: p.category,
     price: p.price,
-    stockStatus: p.stockStatus,
-    stockRaw: p.stockRaw,
+    stock_status: p.stockStatus,
+    stock_raw: p.stockRaw,
     courier: p.courier,
     extra: p.extra,
   }))
 
-  const { data, error } = await supabase.rpc('replace_supplier_products', {
-    p_supplier_id: supplierId,
-    p_products: payload,
-  })
+  const insertedIds: string[] = []
+  for (const batch of chunkArray(rows)) {
+    const { data, error } = await supabase
+      .from('supplier_products')
+      .insert(batch)
+      .select('id')
+    if (error) {
+      for (const ids of chunkArray(insertedIds)) {
+        await supabase.from('supplier_products').delete().in('id', ids)
+      }
+      throw new Error(`공급처 상품 교체 실패: ${error.message}`)
+    }
+    insertedIds.push(...((data ?? []) as { id: string }[]).map((row) => row.id))
+  }
 
-  if (error) throw new Error(`공급처 상품 교체 실패: ${error.message}`)
-  return { count: (data as number) ?? 0 }
+  for (const ids of chunkArray(existingRows.map((row) => row.id))) {
+    const { error } = await supabase
+      .from('supplier_products')
+      .delete()
+      .in('id', ids)
+    if (error) throw new Error(`기존 공급처 상품 삭제 실패: ${error.message}`)
+  }
+
+  return { count: rows.length }
 }
 
 export async function getSupplierProductCount(

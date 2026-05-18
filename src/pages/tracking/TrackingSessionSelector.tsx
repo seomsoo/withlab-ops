@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 
 import { useWorkSessions } from '@/hooks/useWorkSessions'
 import { supabase } from '@/lib/supabase/client'
+import { fetchAllPages } from '@/lib/supabase/pagination'
 
 import type { WorkSessionStatus } from '@/types'
 
@@ -27,26 +28,71 @@ async function fetchSessionInfos(
   if (sessionIds.length === 0) return new Map()
 
   const [orders, allocs, trackings] = await Promise.all([
-    supabase.from('orders').select('work_session_id').in('work_session_id', sessionIds),
-    supabase.from('allocations').select('work_session_id, supplier_id').in('work_session_id', sessionIds),
-    supabase.from('trackings').select('work_session_id, status').in('work_session_id', sessionIds),
+    fetchAllPages<{ work_session_id: string }>(async (from, to) => {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id, work_session_id')
+        .in('work_session_id', sessionIds)
+        .order('id', { ascending: true })
+        .range(from, to)
+      return { data: (data ?? []) as { work_session_id: string }[], error }
+    }, '주문 세션 정보 조회 실패'),
+    fetchAllPages<{ work_session_id: string; supplier_id: string }>(
+      async (from, to) => {
+        const { data, error } = await supabase
+          .from('allocations')
+          .select('id, work_session_id, supplier_id')
+          .in('work_session_id', sessionIds)
+          .order('id', { ascending: true })
+          .range(from, to)
+        return {
+          data: (data ?? []) as {
+            work_session_id: string
+            supplier_id: string
+          }[],
+          error,
+        }
+      },
+      '배정 세션 정보 조회 실패'
+    ),
+    fetchAllPages<{ work_session_id: string; status: string }>(
+      async (from, to) => {
+        const { data, error } = await supabase
+          .from('trackings')
+          .select('id, work_session_id, status')
+          .in('work_session_id', sessionIds)
+          .order('id', { ascending: true })
+          .range(from, to)
+        return {
+          data: (data ?? []) as { work_session_id: string; status: string }[],
+          error,
+        }
+      },
+      '운송장 세션 정보 조회 실패'
+    ),
   ])
 
   const map = new Map<string, SessionInfo>()
   for (const id of sessionIds) {
-    map.set(id, { orderCount: 0, supplierCount: 0, allocationCount: 0, matchedCount: 0, totalTrackings: 0 })
+    map.set(id, {
+      orderCount: 0,
+      supplierCount: 0,
+      allocationCount: 0,
+      matchedCount: 0,
+      totalTrackings: 0,
+    })
   }
 
-  for (const o of orders.data ?? []) {
-    const info = map.get(o.work_session_id as string)
+  for (const o of orders) {
+    const info = map.get(o.work_session_id)
     if (info) info.orderCount++
   }
 
   const supplierSets = new Map<string, Set<string>>()
-  for (const a of allocs.data ?? []) {
-    const sid = a.work_session_id as string
+  for (const a of allocs) {
+    const sid = a.work_session_id
     if (!supplierSets.has(sid)) supplierSets.set(sid, new Set())
-    supplierSets.get(sid)!.add(a.supplier_id as string)
+    supplierSets.get(sid)!.add(a.supplier_id)
     const info = map.get(sid)
     if (info) info.allocationCount++
   }
@@ -55,8 +101,8 @@ async function fetchSessionInfos(
     if (info) info.supplierCount = set.size
   }
 
-  for (const t of trackings.data ?? []) {
-    const info = map.get(t.work_session_id as string)
+  for (const t of trackings) {
+    const info = map.get(t.work_session_id)
     if (info) {
       info.totalTrackings++
       if (t.status === 'matched') info.matchedCount++
@@ -75,7 +121,10 @@ const STATUS_DISPLAY: Record<
   completed: { label: '완료', variant: 'muted' },
 }
 
-function isClickable(status: WorkSessionStatus, allocationCount: number): boolean {
+function isClickable(
+  status: WorkSessionStatus,
+  allocationCount: number
+): boolean {
   if (status === 'active') return allocationCount > 0
   return status === 'ordered' || status === 'completed'
 }
@@ -86,7 +135,10 @@ export default function TrackingSessionSelector() {
   const [infos, setInfos] = useState<Map<string, SessionInfo>>(new Map())
 
   const filteredSessions = sessions.filter(
-    (s) => s.status === 'ordered' || s.status === 'completed' || s.status === 'active'
+    (s) =>
+      s.status === 'ordered' ||
+      s.status === 'completed' ||
+      s.status === 'active'
   )
 
   useEffect(() => {
@@ -147,7 +199,10 @@ export default function TrackingSessionSelector() {
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[15px] font-bold text-t-strong truncate" title={s.name}>
+                    <span
+                      className="text-[15px] font-bold text-t-strong truncate"
+                      title={s.name}
+                    >
                       {s.name}
                     </span>
                     <StatusBadge variant={display.variant}>
@@ -159,18 +214,23 @@ export default function TrackingSessionSelector() {
                       <span>공급처 배정을 먼저 완료해 주세요</span>
                     ) : (
                       <>
-                        <span>{new Date(s.createdAt).toLocaleString('ko-KR')}</span>
+                        <span>
+                          {new Date(s.createdAt).toLocaleString('ko-KR')}
+                        </span>
                         {infos.has(s.id) && (
                           <>
                             <span>·</span>
                             <span>주문 {infos.get(s.id)!.orderCount}건</span>
                             <span>·</span>
-                            <span>공급처 {infos.get(s.id)!.supplierCount}곳</span>
+                            <span>
+                              공급처 {infos.get(s.id)!.supplierCount}곳
+                            </span>
                             {infos.get(s.id)!.totalTrackings > 0 && (
                               <>
                                 <span>·</span>
                                 <span>
-                                  운송장 {infos.get(s.id)!.matchedCount}/{infos.get(s.id)!.totalTrackings}
+                                  운송장 {infos.get(s.id)!.matchedCount}/
+                                  {infos.get(s.id)!.totalTrackings}
                                 </span>
                               </>
                             )}
@@ -181,7 +241,10 @@ export default function TrackingSessionSelector() {
                   </div>
                 </div>
                 {clickable && (
-                  <ChevronRight size={16} className="text-t-faint flex-shrink-0" />
+                  <ChevronRight
+                    size={16}
+                    className="text-t-faint flex-shrink-0"
+                  />
                 )}
               </button>
             )

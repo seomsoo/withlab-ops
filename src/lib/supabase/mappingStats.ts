@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchAllPages } from '@/lib/supabase/pagination'
 
 export type SupplierEnrichment = {
   supplierId: string
@@ -6,35 +7,26 @@ export type SupplierEnrichment = {
   avgPrice: number | null
 }
 
-async function fetchAllRows<T>(
-  table: string,
-  select: string
-): Promise<T[]> {
-  const PAGE_SIZE = 1000
-  const allRows: T[] = []
-  let from = 0
-
-  while (true) {
+async function fetchAllRows<T>(table: string, select: string): Promise<T[]> {
+  return fetchAllPages<T>(async (from, to) => {
     const { data, error } = await supabase
       .from(table)
       .select(select)
       .order('id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
-
-    if (error) throw new Error(`${table} 조회 실패: ${error.message}`)
-    const rows = (data ?? []) as T[]
-    allRows.push(...rows)
-    if (rows.length < PAGE_SIZE) break
-    from += PAGE_SIZE
-  }
-
-  return allRows
+      .range(from, to)
+    return { data: (data ?? []) as T[], error }
+  }, `${table} 조회 실패`)
 }
 
-export async function getSupplierEnrichments(): Promise<Map<string, SupplierEnrichment>> {
+export async function getSupplierEnrichments(): Promise<
+  Map<string, SupplierEnrichment>
+> {
   const [mappingsData, productsData] = await Promise.all([
     fetchAllRows<{ supplier_id: string }>('product_mappings', 'supplier_id'),
-    fetchAllRows<{ supplier_id: string; price: number | null }>('supplier_products', 'supplier_id, price'),
+    fetchAllRows<{ supplier_id: string; price: number | null }>(
+      'supplier_products',
+      'supplier_id, price'
+    ),
   ])
 
   const map = new Map<string, SupplierEnrichment>()
@@ -88,21 +80,39 @@ export type MappingStats = {
 }
 
 export async function getMappingStats(): Promise<MappingStats> {
-  const [suppliers, templates, catalog, productMappings, nameMappings, couriers] =
-    await Promise.all([
-      supabase.from('suppliers').select('id, is_active', { count: 'exact', head: true }).eq('is_active', true),
-      supabase.from('supplier_templates').select('id', { count: 'exact', head: true }),
-      supabase.from('supplier_products').select('id', { count: 'exact', head: true }),
-      supabase.from('product_mappings').select('id', { count: 'exact', head: true }),
-      supabase.from('name_mappings').select('id', { count: 'exact', head: true }),
-      supabase.from('courier_mappings').select('id', { count: 'exact', head: true }),
-    ])
+  const [
+    suppliers,
+    templates,
+    catalog,
+    productMappings,
+    nameMappings,
+    couriers,
+  ] = await Promise.all([
+    supabase
+      .from('suppliers')
+      .select('id, is_active', { count: 'exact', head: true })
+      .eq('is_active', true),
+    supabase
+      .from('supplier_templates')
+      .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('supplier_products')
+      .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('product_mappings')
+      .select('id', { count: 'exact', head: true }),
+    supabase.from('name_mappings').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('courier_mappings')
+      .select('id', { count: 'exact', head: true }),
+  ])
 
   const dictionary = await supabase
     .from('fruit_dictionary')
     .select('id', { count: 'exact', head: true })
     .eq('is_active', true)
-  const dictionaryCount = dictionary.error?.code === 'PGRST205' ? 0 : (dictionary.count ?? 0)
+  const dictionaryCount =
+    dictionary.error?.code === 'PGRST205' ? 0 : (dictionary.count ?? 0)
 
   return {
     supplierCount: suppliers.count ?? 0,

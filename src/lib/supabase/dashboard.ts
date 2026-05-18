@@ -14,6 +14,7 @@ export type DashboardWorkSession = WorkSession & {
 export type DashboardStats = {
   activeSessionCount: number
   orderedSessionCount: number
+  completedSessionCount: number
   totalSupplierCount: number
   totalMappingCount: number
   totalProductCount: number
@@ -69,6 +70,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const [
     activeRes,
     orderedRes,
+    completedRes,
     supplierRes,
     mappingRes,
     productRes,
@@ -82,6 +84,10 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .from('work_sessions')
       .select('*', { count: 'exact', head: true })
       .eq('status', 'ordered'),
+    supabase
+      .from('work_sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'completed'),
     supabase
       .from('suppliers')
       .select('*', { count: 'exact', head: true })
@@ -102,7 +108,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .eq('work_sessions.status', 'ordered'),
   ])
 
-  for (const res of [activeRes, orderedRes, supplierRes, mappingRes, productRes]) {
+  for (const res of [activeRes, orderedRes, completedRes, supplierRes, mappingRes, productRes]) {
     if (res.error) throw new Error(`통계 조회 실패: ${res.error.message}`)
   }
 
@@ -117,6 +123,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   return {
     activeSessionCount: activeRes.count ?? 0,
     orderedSessionCount: orderedRes.count ?? 0,
+    completedSessionCount: completedRes.count ?? 0,
     totalSupplierCount: supplierRes.count ?? 0,
     totalMappingCount: mappingRes.count ?? 0,
     totalProductCount: productRes.count ?? 0,

@@ -350,6 +350,21 @@ export default function Dashboard() {
         </div>
       )}
 
+      {(stats?.completedSessionCount ?? 0) >= 30 && (
+        <Link
+          to="/orders"
+          className="flex items-center gap-3 rounded-radius-md border border-warning-light bg-warning-light px-4 py-3 no-underline transition-colors hover:bg-warning-light/80"
+        >
+          <AlertCircle size={16} className="text-warning-dark flex-shrink-0" />
+          <span className="flex-1 text-sm text-warning-dark">
+            완료된 작업건이 {stats?.completedSessionCount}개 쌓여 있어요. 오래된 작업건을 삭제하면 시스템이 더 원활합니다.
+          </span>
+          <span className="text-[13px] font-medium text-warning-dark">
+            작업건 관리 &rarr;
+          </span>
+        </Link>
+      )}
+
       <QuickActions onNewOrder={() => setDialogOpen(true)} />
 
       <RecentJobs

@@ -1,7 +1,14 @@
 import { supabase } from '@/lib/supabase/client'
 import { toTracking, toTrackingImport } from '@/lib/schemas'
+import { chunkArray, fetchAllPages } from '@/lib/supabase/pagination'
 
-import type { Tracking, TrackingImport, TrackingStatus, TrackingStats, InvalidRow } from '@/types'
+import type {
+  Tracking,
+  TrackingImport,
+  TrackingStatus,
+  TrackingStats,
+  InvalidRow,
+} from '@/types'
 import type { TrackingRow, TrackingImportRow } from '@/lib/schemas'
 
 export async function createTrackingImport(input: {
@@ -92,34 +99,42 @@ export async function saveTrackings(
     matched_at: t.status === 'matched' ? new Date().toISOString() : null,
   }))
 
-  const { error } = await supabase.from('trackings').insert(rows)
-  if (error) throw new Error(`운송장 저장 실패: ${error.message}`)
+  for (const batch of chunkArray(rows)) {
+    const { error } = await supabase.from('trackings').insert(batch)
+    if (error) throw new Error(`운송장 저장 실패: ${error.message}`)
+  }
 }
 
-export async function getTrackings(
-  workSessionId: string
-): Promise<Tracking[]> {
-  const { data, error } = await supabase
-    .from('trackings')
-    .select('*')
-    .eq('work_session_id', workSessionId)
-    .order('raw_row_number')
+export async function getTrackings(workSessionId: string): Promise<Tracking[]> {
+  const allRows = await fetchAllPages<TrackingRow>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('trackings')
+      .select('*')
+      .eq('work_session_id', workSessionId)
+      .order('raw_row_number')
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data ?? []) as TrackingRow[], error }
+  }, '운송장 조회 실패')
 
-  if (error) throw new Error(`운송장 조회 실패: ${error.message}`)
-  return (data as TrackingRow[]).map(toTracking)
+  return allRows.map(toTracking)
 }
 
 export async function getTrackingsByImport(
   trackingImportId: string
 ): Promise<Tracking[]> {
-  const { data, error } = await supabase
-    .from('trackings')
-    .select('*')
-    .eq('tracking_import_id', trackingImportId)
-    .order('raw_row_number')
+  const allRows = await fetchAllPages<TrackingRow>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('trackings')
+      .select('*')
+      .eq('tracking_import_id', trackingImportId)
+      .order('raw_row_number')
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data ?? []) as TrackingRow[], error }
+  }, '운송장 조회 실패')
 
-  if (error) throw new Error(`운송장 조회 실패: ${error.message}`)
-  return (data as TrackingRow[]).map(toTracking)
+  return allRows.map(toTracking)
 }
 
 export async function updateTrackingMatch(
@@ -164,12 +179,15 @@ export async function overwriteTrackingMatch(
 export async function getTrackingStats(
   workSessionId: string
 ): Promise<TrackingStats> {
-  const { data, error } = await supabase
-    .from('trackings')
-    .select('status')
-    .eq('work_session_id', workSessionId)
-
-  if (error) throw new Error(`매칭 통계 조회 실패: ${error.message}`)
+  const allRows = await fetchAllPages<{ status: string }>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('trackings')
+      .select('status')
+      .eq('work_session_id', workSessionId)
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data ?? []) as { status: string }[], error }
+  }, '매칭 통계 조회 실패')
 
   const stats: TrackingStats = {
     total: 0,
@@ -179,7 +197,7 @@ export async function getTrackingStats(
     invalid: 0,
   }
 
-  for (const row of data ?? []) {
+  for (const row of allRows) {
     stats.total++
     const s = row.status as TrackingStatus
     stats[s]++
@@ -199,38 +217,68 @@ export type SupplierTrackingProgress = {
 export async function getSupplierTrackingProgress(
   workSessionId: string
 ): Promise<SupplierTrackingProgress[]> {
-  const [allocRes, trackRes, supplierRes] = await Promise.all([
-    supabase
-      .from('allocations')
-      .select('id, supplier_id')
-      .eq('work_session_id', workSessionId),
-    supabase
-      .from('trackings')
-      .select('source_supplier_id, status')
-      .eq('work_session_id', workSessionId),
-    supabase
-      .from('suppliers')
-      .select('id, name')
-      .eq('is_active', true),
+  const [allAllocs, allTracks, supplierResult] = await Promise.all([
+    fetchAllPages<{ id: string; supplier_id: string }>(async (from, to) => {
+      const { data, error } = await supabase
+        .from('allocations')
+        .select('id, supplier_id')
+        .eq('work_session_id', workSessionId)
+        .order('id', { ascending: true })
+        .range(from, to)
+      return {
+        data: (data ?? []) as { id: string; supplier_id: string }[],
+        error,
+      }
+    }, '배정 조회 실패'),
+    fetchAllPages<{ source_supplier_id: string; status: string }>(
+      async (from, to) => {
+        const { data, error } = await supabase
+          .from('trackings')
+          .select('source_supplier_id, status')
+          .eq('work_session_id', workSessionId)
+          .order('id', { ascending: true })
+          .range(from, to)
+        return {
+          data: (data ?? []) as {
+            source_supplier_id: string
+            status: string
+          }[],
+          error,
+        }
+      },
+      '운송장 조회 실패'
+    ),
+    supabase.from('suppliers').select('id, name').eq('is_active', true),
   ])
 
+  if (supplierResult.error) {
+    throw new Error(`공급처 조회 실패: ${supplierResult.error.message}`)
+  }
+
   const supplierNames = new Map(
-    (supplierRes.data ?? []).map((s: { id: string; name: string }) => [s.id, s.name])
+    (supplierResult.data ?? []).map((s: { id: string; name: string }) => [
+      s.id,
+      s.name,
+    ])
   )
 
   const allocBySup = new Map<string, number>()
-  for (const a of allocRes.data ?? []) {
-    const sid = a.supplier_id as string
-    allocBySup.set(sid, (allocBySup.get(sid) ?? 0) + 1)
+  for (const a of allAllocs) {
+    allocBySup.set(a.supplier_id, (allocBySup.get(a.supplier_id) ?? 0) + 1)
   }
 
   const uploadBySup = new Map<string, number>()
   const matchBySup = new Map<string, number>()
-  for (const t of trackRes.data ?? []) {
-    const sid = t.source_supplier_id as string
-    uploadBySup.set(sid, (uploadBySup.get(sid) ?? 0) + 1)
+  for (const t of allTracks) {
+    uploadBySup.set(
+      t.source_supplier_id,
+      (uploadBySup.get(t.source_supplier_id) ?? 0) + 1
+    )
     if (t.status === 'matched') {
-      matchBySup.set(sid, (matchBySup.get(sid) ?? 0) + 1)
+      matchBySup.set(
+        t.source_supplier_id,
+        (matchBySup.get(t.source_supplier_id) ?? 0) + 1
+      )
     }
   }
 
@@ -252,10 +300,12 @@ export async function bulkIgnoreTrackings(
 ): Promise<void> {
   if (trackingIds.length === 0) return
 
-  const { error } = await supabase
-    .from('trackings')
-    .update({ ignored: true, ignored_reason: reason })
-    .in('id', trackingIds)
+  for (const batch of chunkArray(trackingIds)) {
+    const { error } = await supabase
+      .from('trackings')
+      .update({ ignored: true, ignored_reason: reason })
+      .in('id', batch)
 
-  if (error) throw new Error(`운송장 건너뛰기 실패: ${error.message}`)
+    if (error) throw new Error(`운송장 건너뛰기 실패: ${error.message}`)
+  }
 }

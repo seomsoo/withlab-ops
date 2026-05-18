@@ -1,7 +1,19 @@
 import { supabase } from '@/lib/supabase/client'
-import { standardOrderSchema, toOrderImport, toStandardOrder } from '@/lib/schemas'
+import {
+  standardOrderSchema,
+  toOrderImport,
+  toStandardOrder,
+} from '@/lib/schemas'
+import { chunkArray, fetchAllPages } from '@/lib/supabase/pagination'
+import { toFriendlyDbError } from '@/lib/supabase/errors'
 
-import type { StandardOrder, OrderImport, InvalidRow, DuplicateRow, Platform } from '@/types'
+import type {
+  StandardOrder,
+  OrderImport,
+  InvalidRow,
+  DuplicateRow,
+  Platform,
+} from '@/types'
 import type { OrderImportRow, OrderRow } from '@/lib/schemas'
 
 type CreateOrderImportInput = {
@@ -36,7 +48,7 @@ export async function createOrderImport(
     })
     .select()
     .single()
-  if (error) throw new Error(`주문 임포트 생성 실패: ${error.message}`)
+  if (error) throw new Error(toFriendlyDbError(error, 'order_import'))
   return toOrderImport(data as OrderImportRow)
 }
 
@@ -76,21 +88,28 @@ export async function saveOrders(
     raw_row_number: o.rawRowNumber,
   }))
 
-  const { error } = await supabase.from('orders').insert(rows)
-  if (error) throw new Error(`주문 저장 실패: ${error.message}`)
+  for (const batch of chunkArray(rows)) {
+    const { error } = await supabase.from('orders').insert(batch)
+    if (error) throw new Error(toFriendlyDbError(error, 'order'))
+  }
 }
 
 export async function getOrders(
   workSessionId: string
 ): Promise<StandardOrder[]> {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('work_session_id', workSessionId)
-    .order('platform')
-    .order('raw_row_number')
-  if (error) throw new Error(`주문 조회 실패: ${error.message}`)
-  return (data as OrderRow[]).map(toStandardOrder)
+  const allRows = await fetchAllPages<OrderRow>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('work_session_id', workSessionId)
+      .order('platform')
+      .order('raw_row_number')
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data ?? []) as OrderRow[], error }
+  }, '주문 조회 실패')
+
+  return allRows.map(toStandardOrder)
 }
 
 export async function getOrderImports(
@@ -105,9 +124,7 @@ export async function getOrderImports(
   return (data as OrderImportRow[]).map(toOrderImport)
 }
 
-export async function deleteOrderImport(
-  orderImportId: string
-): Promise<void> {
+export async function deleteOrderImport(orderImportId: string): Promise<void> {
   const { error } = await supabase
     .from('order_imports')
     .delete()

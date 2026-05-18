@@ -1,9 +1,7 @@
 import { supabase } from '@/lib/supabase/client'
-import {
-  productMappingFormSchema,
-  toProductMapping,
-} from '@/lib/schemas'
+import { productMappingFormSchema, toProductMapping } from '@/lib/schemas'
 import { toFriendlyDbError } from '@/lib/supabase/errors'
+import { chunkArray, fetchAllPages } from '@/lib/supabase/pagination'
 
 import type { ProductMapping, Platform } from '@/types'
 import type {
@@ -29,15 +27,23 @@ function toProductMappingWithSupplier(
 export async function getProductMappings(): Promise<
   ProductMappingWithSupplier[]
 > {
-  const { data, error } = await supabase
-    .from('product_mappings')
-    .select('*, supplier:suppliers(id, name, is_active)')
-    .order('platform')
-    .order('product_name')
-    .order('option_name')
-    .order('priority')
-  if (error) throw new Error(`품목 매핑 조회 실패: ${error.message}`)
-  return (data as ProductMappingJoinRow[]).map(toProductMappingWithSupplier)
+  const allRows = await fetchAllPages<ProductMappingJoinRow>(
+    async (from, to) => {
+      const { data, error } = await supabase
+        .from('product_mappings')
+        .select('*, supplier:suppliers(id, name, is_active)')
+        .order('platform')
+        .order('product_name')
+        .order('option_name')
+        .order('priority')
+        .order('id', { ascending: true })
+        .range(from, to)
+      return { data: (data as ProductMappingJoinRow[]) ?? [], error }
+    },
+    '품목 매핑 조회 실패'
+  )
+
+  return allRows.map(toProductMappingWithSupplier)
 }
 
 export async function createProductMapping(
@@ -113,27 +119,50 @@ export type UnmappedProduct = {
 }
 
 export async function getUnmappedProducts(): Promise<UnmappedProduct[]> {
-  const { data: orders, error: ordErr } = await supabase
-    .from('orders')
-    .select('platform, product_name, option_name')
-    .order('created_at', { ascending: false })
-    .limit(2000)
-  if (ordErr) throw new Error(`주문 조회 실패: ${ordErr.message}`)
+  type ProductKeyRow = {
+    platform: string
+    product_name: string
+    option_name: string
+  }
 
-  const { data: mappings, error: mapErr } = await supabase
-    .from('product_mappings')
-    .select('platform, product_name, option_name')
-  if (mapErr) throw new Error(`매핑 조회 실패: ${mapErr.message}`)
+  const [orders, mappings] = await Promise.all([
+    fetchAllPages<ProductKeyRow>(
+      async (from, to) => {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('platform, product_name, option_name')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, to)
+        return { data: (data ?? []) as ProductKeyRow[], error }
+      },
+      '주문 조회 실패',
+      { maxRows: 2000 }
+    ),
+    fetchAllPages<ProductKeyRow>(async (from, to) => {
+      const { data, error } = await supabase
+        .from('product_mappings')
+        .select('platform, product_name, option_name')
+        .order('id', { ascending: true })
+        .range(from, to)
+      return { data: (data ?? []) as ProductKeyRow[], error }
+    }, '매핑 조회 실패'),
+  ])
 
   const mappedKeys = new Set(
-    (mappings ?? []).map(
-      (m: { platform: string; product_name: string; option_name: string }) =>
-        `${m.platform}::${m.product_name}::${m.option_name}`
-    )
+    mappings.map((m) => `${m.platform}::${m.product_name}::${m.option_name}`)
   )
 
-  const counts = new Map<string, { platform: Platform; productName: string; optionName: string; count: number }>()
-  for (const o of orders ?? []) {
+  const counts = new Map<
+    string,
+    {
+      platform: Platform
+      productName: string
+      optionName: string
+      count: number
+    }
+  >()
+  for (const o of orders) {
     const key = `${o.platform as string}::${o.product_name as string}::${o.option_name as string}`
     if (mappedKeys.has(key)) continue
     const commonKey = `common::${o.product_name as string}::${o.option_name as string}`
@@ -179,10 +208,14 @@ export async function createProductMappingsBulk(
     is_default: true,
     priority: 0,
   }))
-  const { error } = await supabase
-    .from('product_mappings')
-    .upsert(rows, { onConflict: 'platform,product_name,option_name,supplier_id', ignoreDuplicates: true })
-  if (error) throw new Error(`일괄 매핑 등록 실패: ${error.message}`)
+  for (const batch of chunkArray(rows)) {
+    const { error } = await supabase.from('product_mappings').upsert(batch, {
+      onConflict: 'platform,product_name,option_name,supplier_id',
+      ignoreDuplicates: true,
+    })
+    if (error) throw new Error(`일괄 매핑 등록 실패: ${error.message}`)
+  }
+
   return items.length
 }
 
@@ -192,18 +225,19 @@ export async function createAutoProductMapping(input: {
   optionName: string
   supplierId: string
 }): Promise<void> {
-  const { error } = await supabase
-    .from('product_mappings')
-    .upsert(
-      {
-        platform: input.platform,
-        product_name: input.productName,
-        option_name: input.optionName,
-        supplier_id: input.supplierId,
-        is_default: true,
-        priority: 0,
-      },
-      { onConflict: 'platform,product_name,option_name,supplier_id', ignoreDuplicates: true }
-    )
+  const { error } = await supabase.from('product_mappings').upsert(
+    {
+      platform: input.platform,
+      product_name: input.productName,
+      option_name: input.optionName,
+      supplier_id: input.supplierId,
+      is_default: true,
+      priority: 0,
+    },
+    {
+      onConflict: 'platform,product_name,option_name,supplier_id',
+      ignoreDuplicates: true,
+    }
+  )
   if (error) throw new Error(toFriendlyDbError(error, 'product_mapping'))
 }

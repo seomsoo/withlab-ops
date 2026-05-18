@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase/client'
+import { fetchAllPages } from '@/lib/supabase/pagination'
 
 export type HistoryEntry = {
   supplierId: string
@@ -32,26 +33,30 @@ export async function getYesterdayAllocations(
 
   const sessionId = (sessions[0] as { id: string }).id
 
-  const { data, error } = await supabase
-    .from('allocations')
-    .select(`
-      supplier_id,
-      suppliers!inner(name),
-      orders!inner(product_name)
-    `)
-    .eq('work_session_id', sessionId)
-
-  if (error) throw new Error(`전날 배정 조회 실패: ${error.message}`)
-  if (!data) return new Map()
-
   type AllocRow = {
     supplier_id: string
     suppliers: { name: string }
     orders: { product_name: string }
   }
 
+  const allRows = await fetchAllPages<AllocRow>(async (from, to) => {
+    const { data, error } = await supabase
+      .from('allocations')
+      .select(
+        `
+        supplier_id,
+        suppliers!inner(name),
+        orders!inner(product_name)
+      `
+      )
+      .eq('work_session_id', sessionId)
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data ?? []) as unknown as AllocRow[], error }
+  }, '전날 배정 조회 실패')
+
   const result = new Map<string, HistoryEntry>()
-  for (const row of data as unknown as AllocRow[]) {
+  for (const row of allRows) {
     const productName = row.orders.product_name
     if (!result.has(productName)) {
       result.set(productName, {
@@ -77,32 +82,29 @@ export async function getAllocationFrequency(
     work_sessions: { status: string; created_at: string }
   }
 
-  const PAGE_SIZE = 1000
-  const allRows: FreqRow[] = []
-  let from = 0
-
-  while (true) {
+  const allRows = await fetchAllPages<FreqRow>(async (from, to) => {
     const { data, error } = await supabase
       .from('allocations')
-      .select(`
+      .select(
+        `
         supplier_id,
         suppliers!inner(name),
         orders!inner(product_name),
         work_sessions!inner(status, created_at)
-      `)
+      `
+      )
       .in('work_sessions.status', ['ordered', 'completed'])
       .gte('work_sessions.created_at', since.toISOString())
       .order('created_at', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1)
+      .order('id', { ascending: true })
+      .range(from, to)
+    return { data: (data ?? []) as unknown as FreqRow[], error }
+  }, '빈도 조회 실패')
 
-    if (error) throw new Error(`빈도 조회 실패: ${error.message}`)
-    const rows = (data ?? []) as unknown as FreqRow[]
-    allRows.push(...rows)
-    if (rows.length < PAGE_SIZE) break
-    from += PAGE_SIZE
-  }
-
-  const counter = new Map<string, Map<string, { name: string; count: number }>>()
+  const counter = new Map<
+    string,
+    Map<string, { name: string; count: number }>
+  >()
 
   for (const row of allRows) {
     const productName = row.orders.product_name
