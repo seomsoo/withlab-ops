@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ChevronLeft, FileSpreadsheet, Trash2, Upload, Search, Package } from 'lucide-react'
+import { ChevronLeft, FileSpreadsheet, Trash2, Upload, Search, Package, Truck } from 'lucide-react'
 
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -27,15 +27,21 @@ import {
   uploadTemplateFile,
   removeStorageFile,
 } from '@/lib/supabase/supplierTemplates'
+import {
+  getSupplierTrackingTemplate,
+  upsertSupplierTrackingTemplate,
+  deleteSupplierTrackingTemplate,
+} from '@/lib/supabase/supplierTrackingTemplates'
 import { supplierFormSchema } from '@/lib/schemas'
 import { validateExcelFile } from '@/utils/file'
-import { readExcelFile, sheetToRows } from '@/utils/excel'
+import { readExcelFile, sheetToRows, cellToString } from '@/utils/excel'
 
 import { useSupplierProducts } from '@/hooks/useSupplierProducts'
 
 import type {
   Supplier,
   SupplierTemplate,
+  SupplierTrackingTemplate,
   ColumnMappingItem,
   SystemField,
   PhoneFormat,
@@ -81,6 +87,23 @@ const PRODUCT_SYSTEM_FIELDS: { value: SupplierProductSystemField; label: string 
   { value: 'stockStatus', label: '재고상태' },
   { value: 'courier', label: '택배사' },
   { value: 'empty', label: '(사용 안 함)' },
+]
+
+type TrackingColumnRole = 'orderKey' | 'trackingNumber' | 'courier' | 'productName' | 'recipientName' | 'empty'
+
+type TrackingColumnHeader = {
+  index: number
+  name: string
+  role: TrackingColumnRole
+}
+
+const TRACKING_COLUMN_ROLES: { value: TrackingColumnRole; label: string }[] = [
+  { value: 'empty', label: '(미사용)' },
+  { value: 'orderKey', label: '주문번호 *' },
+  { value: 'trackingNumber', label: '운송장번호 *' },
+  { value: 'courier', label: '택배사' },
+  { value: 'productName', label: '상품명' },
+  { value: 'recipientName', label: '수령인' },
 ]
 
 const STOCK_BADGE: Record<string, { label: string; className: string }> = {
@@ -169,13 +192,28 @@ export default function SupplierDetail() {
   const [templateSaving, setTemplateSaving] = useState(false)
   const [deleteTemplateOpen, setDeleteTemplateOpen] = useState(false)
 
+  // --- 운송장 양식 ---
+  const [trackingTemplate, setTrackingTemplate] = useState<SupplierTrackingTemplate | null>(null)
+  const [ttEditing, setTtEditing] = useState(false)
+  const [ttFile, setTtFile] = useState<File | null>(null)
+  const [ttWorkbook, setTtWorkbook] = useState<Awaited<ReturnType<typeof readExcelFile>> | null>(null)
+  const [ttSheetNames, setTtSheetNames] = useState<string[]>([])
+  const [ttSheetName, setTtSheetName] = useState('')
+  const [ttHeaderRow, setTtHeaderRow] = useState(1)
+  const [ttDataStartRow, setTtDataStartRow] = useState(2)
+  const [ttHeaders, setTtHeaders] = useState<TrackingColumnHeader[]>([])
+  const [ttDefaultCourier, setTtDefaultCourier] = useState('')
+  const [ttSaving, setTtSaving] = useState(false)
+  const [ttDeleteOpen, setTtDeleteOpen] = useState(false)
+
   const fetchData = useCallback(async () => {
     if (!id) return
     try {
       setLoading(true)
-      const [s, t] = await Promise.all([
+      const [s, t, tt] = await Promise.all([
         getSupplierById(id),
         getSupplierTemplate(id),
+        getSupplierTrackingTemplate(id),
       ])
       if (!s) {
         toast.error('공급처를 찾을 수 없습니다')
@@ -184,6 +222,7 @@ export default function SupplierDetail() {
       }
       setSupplier(s)
       setTemplate(t)
+      setTrackingTemplate(tt)
       setInfoForm({ name: s.name, contact: s.contact ?? '', memo: s.memo ?? '' })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '데이터 조회 실패')
@@ -199,9 +238,10 @@ export default function SupplierDetail() {
       if (!id) return
       try {
         setLoading(true)
-        const [s, t] = await Promise.all([
+        const [s, t, tt] = await Promise.all([
           getSupplierById(id),
           getSupplierTemplate(id),
+          getSupplierTrackingTemplate(id),
         ])
         if (!alive) return
         if (!s) {
@@ -211,6 +251,7 @@ export default function SupplierDetail() {
         }
         setSupplier(s)
         setTemplate(t)
+        setTrackingTemplate(tt)
         setInfoForm({ name: s.name, contact: s.contact ?? '', memo: s.memo ?? '' })
       } catch (err) {
         if (!alive) return
@@ -422,6 +463,210 @@ export default function SupplierDetail() {
       setDeleteTemplateOpen(false)
     }
   }
+
+  // --- 운송장 양식 핸들러 ---
+  function buildTtHeadersFromSheet(
+    wb: Awaited<ReturnType<typeof readExcelFile>>,
+    sheet: string,
+    hRow: number
+  ) {
+    const ws = wb.Sheets[sheet]
+    if (!ws) return
+    const rows = sheetToRows(ws)
+    const headerRowData = rows[hRow - 1] ?? []
+    const headers: TrackingColumnHeader[] = headerRowData
+      .map((cell, i) => ({
+        index: i,
+        name: cellToString(cell),
+        role: 'empty' as TrackingColumnRole,
+      }))
+      .filter((h) => h.name !== '')
+    setTtHeaders(headers)
+  }
+
+  function startTtEdit() {
+    if (trackingTemplate) {
+      setTtSheetName(trackingTemplate.sheetName)
+      setTtHeaderRow(trackingTemplate.headerRow)
+      setTtDataStartRow(trackingTemplate.dataStartRow)
+      setTtDefaultCourier(trackingTemplate.defaultCourier ?? '')
+      const restored: TrackingColumnHeader[] = []
+      restored.push({
+        index: trackingTemplate.orderKeyColumn,
+        name: trackingTemplate.orderKeyHeader,
+        role: 'orderKey',
+      })
+      restored.push({
+        index: trackingTemplate.trackingNumberColumn,
+        name: trackingTemplate.trackingNumberHeader,
+        role: 'trackingNumber',
+      })
+      if (trackingTemplate.courierColumn !== null && trackingTemplate.courierHeader !== null) {
+        restored.push({
+          index: trackingTemplate.courierColumn,
+          name: trackingTemplate.courierHeader,
+          role: 'courier',
+        })
+      }
+      if (trackingTemplate.productNameColumn !== null && trackingTemplate.productNameHeader !== null) {
+        restored.push({
+          index: trackingTemplate.productNameColumn,
+          name: trackingTemplate.productNameHeader,
+          role: 'productName',
+        })
+      }
+      if (trackingTemplate.recipientColumn !== null && trackingTemplate.recipientHeader !== null) {
+        restored.push({
+          index: trackingTemplate.recipientColumn,
+          name: trackingTemplate.recipientHeader,
+          role: 'recipientName',
+        })
+      }
+      restored.sort((a, b) => a.index - b.index)
+      setTtHeaders(restored)
+    } else {
+      setTtSheetName('')
+      setTtHeaderRow(1)
+      setTtDataStartRow(2)
+      setTtDefaultCourier('')
+      setTtHeaders([])
+    }
+    setTtFile(null)
+    setTtWorkbook(null)
+    setTtSheetNames([])
+    setTtEditing(true)
+  }
+
+  function cancelTtEdit() {
+    setTtEditing(false)
+    setTtFile(null)
+    setTtWorkbook(null)
+    setTtSheetNames([])
+    setTtHeaders([])
+    setTtDefaultCourier('')
+  }
+
+  async function handleTtFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    try {
+      validateExcelFile(f)
+      const wb = await readExcelFile(f)
+      setTtFile(f)
+      setTtWorkbook(wb)
+      setTtSheetNames(wb.SheetNames)
+      const firstSheet = wb.SheetNames[0] ?? ''
+      setTtSheetName(firstSheet)
+      if (firstSheet) {
+        buildTtHeadersFromSheet(wb, firstSheet, ttHeaderRow)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '파일 읽기 실패')
+    }
+  }
+
+  function handleTtSheetChange(name: string) {
+    setTtSheetName(name)
+    if (ttWorkbook) {
+      buildTtHeadersFromSheet(ttWorkbook, name, ttHeaderRow)
+    }
+  }
+
+  function handleTtHeaderRowChange(row: number) {
+    setTtHeaderRow(row)
+    if (row >= ttDataStartRow) setTtDataStartRow(row + 1)
+    if (ttWorkbook && ttSheetName) {
+      buildTtHeadersFromSheet(ttWorkbook, ttSheetName, row)
+    }
+  }
+
+  function updateTtRole(idx: number, role: TrackingColumnRole) {
+    setTtHeaders((prev) =>
+      prev.map((h, i) => (i === idx ? { ...h, role } : h))
+    )
+  }
+
+  async function handleTtSave() {
+    if (!id) return
+    if (ttHeaders.length === 0 && !trackingTemplate) {
+      toast.error('샘플 파일을 업로드하거나 컬럼 정보를 입력해주세요')
+      return
+    }
+
+    const assignedRoles = ttHeaders.filter((h) => h.role !== 'empty')
+    const roleCounts = new Map<string, number>()
+    for (const h of assignedRoles) {
+      roleCounts.set(h.role, (roleCounts.get(h.role) ?? 0) + 1)
+    }
+    const duplicateRole = [...roleCounts.entries()].find(([, count]) => count > 1)
+    if (duplicateRole) {
+      const label = TRACKING_COLUMN_ROLES.find((r) => r.value === duplicateRole[0])?.label ?? duplicateRole[0]
+      toast.error(`"${label}" 역할이 여러 컬럼에 지정되어 있습니다`)
+      return
+    }
+
+    const orderKeyCol = assignedRoles.find((h) => h.role === 'orderKey')
+    const trackingNumberCol = assignedRoles.find((h) => h.role === 'trackingNumber')
+    const courierCol = assignedRoles.find((h) => h.role === 'courier')
+    const productNameCol = assignedRoles.find((h) => h.role === 'productName')
+    const recipientCol = assignedRoles.find((h) => h.role === 'recipientName')
+
+    if (!orderKeyCol) {
+      toast.error('필수 매핑 누락: 주문번호')
+      return
+    }
+    if (!trackingNumberCol) {
+      toast.error('필수 매핑 누락: 운송장번호')
+      return
+    }
+    if (!courierCol && !ttDefaultCourier.trim()) {
+      toast.error('택배사 컬럼을 매핑하거나 기본 택배사를 입력해주세요')
+      return
+    }
+    setTtSaving(true)
+    try {
+      const saved = await upsertSupplierTrackingTemplate({
+        supplierId: id,
+        sheetName: ttSheetName,
+        headerRow: ttHeaderRow,
+        dataStartRow: ttDataStartRow,
+        orderKeyColumn: orderKeyCol.index,
+        orderKeyHeader: orderKeyCol.name,
+        trackingNumberColumn: trackingNumberCol.index,
+        trackingNumberHeader: trackingNumberCol.name,
+        courierColumn: courierCol?.index ?? null,
+        courierHeader: courierCol?.name ?? null,
+        defaultCourier: ttDefaultCourier.trim() || null,
+        productNameColumn: productNameCol?.index ?? null,
+        productNameHeader: productNameCol?.name ?? null,
+        recipientColumn: recipientCol?.index ?? null,
+        recipientHeader: recipientCol?.name ?? null,
+      })
+      setTrackingTemplate(saved)
+      setTtEditing(false)
+      toast.success('운송장 양식이 저장되었습니다')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '운송장 양식 저장 실패')
+    } finally {
+      setTtSaving(false)
+    }
+  }
+
+  async function handleTtDelete() {
+    if (!id) return
+    try {
+      await deleteSupplierTrackingTemplate(id)
+      setTrackingTemplate(null)
+      setTtEditing(false)
+      toast.success('운송장 양식이 삭제되었습니다')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '운송장 양식 삭제 실패')
+    } finally {
+      setTtDeleteOpen(false)
+    }
+  }
+
+  const hasCourierMapping = ttHeaders.some((h) => h.role === 'courier')
 
   // --- 상품 양식 핸들러 ---
   async function handleSpFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1239,6 +1484,299 @@ export default function SupplierDetail() {
         )}
       </section>
 
+      {/* 운송장 양식 */}
+      <section className="mt-6 rounded-radius-lg border border-line bg-card p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold text-t-strong">
+            <Truck size={16} className="mr-1.5 inline-block" />
+            운송장 양식
+          </h2>
+          {trackingTemplate && !ttEditing && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={startTtEdit}>
+                수정
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setTtDeleteOpen(true)}
+              >
+                <Trash2 size={14} />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {/* 빈 상태 */}
+        {!trackingTemplate && !ttEditing && (
+          <EmptyState
+            icon={<Truck size={32} />}
+            title="등록된 운송장 양식이 없습니다"
+            description="공급처별 운송장 양식을 등록하면 운송장 파일을 자동으로 파싱할 수 있습니다."
+            action={
+              <Button onClick={startTtEdit}>양식 등록</Button>
+            }
+          />
+        )}
+
+        {/* 표시 모드 */}
+        {trackingTemplate && !ttEditing && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-t-mute">시트</span>
+                <p className="mt-0.5 font-medium text-t-strong">
+                  {trackingTemplate.sheetName || '(첫 번째 시트)'}
+                </p>
+              </div>
+              <div>
+                <span className="text-t-mute">헤더행</span>
+                <p className="mt-0.5 font-medium text-t-strong">
+                  {trackingTemplate.headerRow}행
+                </p>
+              </div>
+              <div>
+                <span className="text-t-mute">데이터 시작행</span>
+                <p className="mt-0.5 font-medium text-t-strong">
+                  {trackingTemplate.dataStartRow}행
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-md border border-line">
+              <table className="w-full text-sm">
+                <thead className="bg-bg-subtle">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-t-mute">
+                      역할
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-t-mute">
+                      컬럼
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-t-mute">
+                      헤더명
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-line/50">
+                    <td className="px-3 py-1.5 text-xs font-medium">주문번호</td>
+                    <td className="px-3 py-1.5 font-mono text-xs text-t-mute">
+                      {colIndexToLetter(trackingTemplate.orderKeyColumn + 1)}열
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {trackingTemplate.orderKeyHeader}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-line/50">
+                    <td className="px-3 py-1.5 text-xs font-medium">운송장번호</td>
+                    <td className="px-3 py-1.5 font-mono text-xs text-t-mute">
+                      {colIndexToLetter(trackingTemplate.trackingNumberColumn + 1)}열
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {trackingTemplate.trackingNumberHeader}
+                    </td>
+                  </tr>
+                  <tr className="border-t border-line/50">
+                    <td className="px-3 py-1.5 text-xs font-medium">택배사</td>
+                    <td className="px-3 py-1.5 font-mono text-xs text-t-mute">
+                      {trackingTemplate.courierColumn !== null
+                        ? `${colIndexToLetter(trackingTemplate.courierColumn + 1)}열`
+                        : '—'}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {trackingTemplate.courierHeader ?? '—'}
+                      {trackingTemplate.defaultCourier && (
+                        <span className="ml-1 text-t-faint">
+                          {trackingTemplate.courierColumn !== null
+                            ? `(빈 값 시: ${trackingTemplate.defaultCourier})`
+                            : `기본값: ${trackingTemplate.defaultCourier}`}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                  {trackingTemplate.productNameColumn !== null && (
+                    <tr className="border-t border-line/50">
+                      <td className="px-3 py-1.5 text-xs font-medium">상품명</td>
+                      <td className="px-3 py-1.5 font-mono text-xs text-t-mute">
+                        {colIndexToLetter(trackingTemplate.productNameColumn + 1)}열
+                      </td>
+                      <td className="px-3 py-1.5 text-xs">
+                        {trackingTemplate.productNameHeader}
+                      </td>
+                    </tr>
+                  )}
+                  {trackingTemplate.recipientColumn !== null && (
+                    <tr className="border-t border-line/50">
+                      <td className="px-3 py-1.5 text-xs font-medium">수령인</td>
+                      <td className="px-3 py-1.5 font-mono text-xs text-t-mute">
+                        {colIndexToLetter(trackingTemplate.recipientColumn + 1)}열
+                      </td>
+                      <td className="px-3 py-1.5 text-xs">
+                        {trackingTemplate.recipientHeader}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 편집 모드 */}
+        {ttEditing && (
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-t-secondary">
+                샘플 운송장 파일 (.xlsx)
+              </label>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleTtFileChange}
+                className="block w-full text-sm text-t-secondary file:mr-3 file:rounded-md file:border-0 file:bg-primary-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
+              />
+              {trackingTemplate && !ttFile && (
+                <p className="mt-1 text-xs text-t-mute">
+                  파일 없이 기존 설정을 수정할 수 있습니다
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label>시트명</Label>
+                {ttSheetNames.length > 0 ? (
+                  <Select value={ttSheetName} onValueChange={handleTtSheetChange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ttSheetNames.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={ttSheetName}
+                    onChange={(e) => setTtSheetName(e.target.value)}
+                    placeholder="비워두면 첫 번째 시트"
+                  />
+                )}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>헤더 행</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={ttHeaderRow}
+                  onChange={(e) => handleTtHeaderRowChange(Number(e.target.value) || 1)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>데이터 시작 행</Label>
+                <Input
+                  type="number"
+                  min={ttHeaderRow + 1}
+                  value={ttDataStartRow}
+                  onChange={(e) =>
+                    setTtDataStartRow(
+                      Math.max(ttHeaderRow + 1, Number(e.target.value) || ttHeaderRow + 1)
+                    )
+                  }
+                />
+              </div>
+            </div>
+
+            {ttHeaders.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-sm font-semibold text-t-strong">
+                  컬럼 매핑
+                  <span className="ml-2 text-xs font-normal text-t-faint">
+                    (주문번호, 운송장번호 필수)
+                  </span>
+                </h3>
+                <div className="max-h-[400px] overflow-auto rounded-md border border-line">
+                  <table className="w-full text-sm">
+                    <thead className="bg-bg-subtle">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-t-mute">
+                          컬럼
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-t-mute">
+                          헤더명
+                        </th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-t-mute">
+                          역할
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ttHeaders.map((h, idx) => (
+                        <tr key={idx} className="border-t border-line/50">
+                          <td className="px-3 py-1.5 font-mono text-xs text-t-mute">
+                            {colIndexToLetter(h.index + 1)}열
+                          </td>
+                          <td className="px-3 py-1.5 text-xs">
+                            {h.name || '(비어있음)'}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <select
+                              value={h.role}
+                              onChange={(e) =>
+                                updateTtRole(idx, e.target.value as TrackingColumnRole)
+                              }
+                              className="rounded border border-line px-2 py-1 text-xs"
+                            >
+                              {TRACKING_COLUMN_ROLES.map((r) => (
+                                <option key={r.value} value={r.value}>
+                                  {r.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {ttHeaders.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label>
+                  기본 택배사
+                  <span className="ml-1 text-xs font-normal text-t-faint">
+                    {hasCourierMapping
+                      ? '(택배사 컬럼이 비어있는 행에 적용)'
+                      : '(모든 행에 적용)'}
+                  </span>
+                </Label>
+                <Input
+                  value={ttDefaultCourier}
+                  onChange={(e) => setTtDefaultCourier(e.target.value)}
+                  placeholder="예: CJ대한통운"
+                  className="max-w-xs"
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={cancelTtEdit}>
+                취소
+              </Button>
+              <Button onClick={handleTtSave} disabled={ttSaving}>
+                {ttSaving ? '저장 중...' : '저장'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* 상품 양식 삭제 ConfirmDialog */}
       <ConfirmDialog
         open={spDeleteOpen}
@@ -1276,6 +1814,19 @@ export default function SupplierDetail() {
         onConfirm={handleTemplateDelete}
         onOpenChange={(open) => {
           if (!open) setDeleteTemplateOpen(false)
+        }}
+      />
+
+      {/* 운송장 양식 삭제 ConfirmDialog */}
+      <ConfirmDialog
+        open={ttDeleteOpen}
+        title="운송장 양식 삭제"
+        description="운송장 양식을 삭제하시겠습니까? 삭제 후에는 기본 파서로 운송장을 처리합니다."
+        confirmText="삭제"
+        variant="destructive"
+        onConfirm={handleTtDelete}
+        onOpenChange={(open) => {
+          if (!open) setTtDeleteOpen(false)
         }}
       />
     </>

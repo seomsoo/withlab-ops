@@ -3,7 +3,8 @@ import { toast } from 'sonner'
 
 import { readExcelFile } from '@/utils/excel'
 import { validateExcelFile } from '@/utils/file'
-import { parseTracking } from '@/lib/parsers/trackingParser'
+import { parseTracking, parseTrackingWithTemplate } from '@/lib/parsers/trackingParser'
+import { getSupplierTrackingTemplate } from '@/lib/supabase/supplierTrackingTemplates'
 import { runMatching } from '@/lib/matching/matchingEngine'
 import { getOrders } from '@/lib/supabase/orders'
 import { getAllocations } from '@/lib/supabase/allocations'
@@ -54,7 +55,10 @@ export function useTrackingUpload(workSessionId: string) {
     ): Promise<TrackingUploadResult> => {
       validateExcelFile(file)
       const workbook = await readExcelFile(file)
-      const parseResult = parseTracking(workbook)
+      const trackingTemplate = await getSupplierTrackingTemplate(supplierId)
+      const parseResult = trackingTemplate
+        ? parseTrackingWithTemplate(workbook, trackingTemplate)
+        : parseTracking(workbook)
 
       if (parseResult.trackings.length === 0) {
         return {
@@ -175,7 +179,10 @@ export function useTrackingUpload(workSessionId: string) {
     ): Promise<TrackingUploadResult> => {
       validateExcelFile(file)
       const workbook = await readExcelFile(file)
-      const parseResult = parseTracking(workbook)
+      const trackingTemplate = await getSupplierTrackingTemplate(supplierId)
+      const parseResult = trackingTemplate
+        ? parseTrackingWithTemplate(workbook, trackingTemplate)
+        : parseTracking(workbook)
 
       if (parseResult.trackings.length === 0) {
         throw new Error('파싱할 데이터가 없습니다')

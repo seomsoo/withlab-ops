@@ -234,6 +234,27 @@ export const supplierTemplateSchema = z.object({
   columnMappings: z.array(columnMappingItemSchema),
 })
 
+export const supplierTrackingTemplateRowSchema = z.object({
+  id: uuidString,
+  supplier_id: uuidString,
+  sheet_name: z.string(),
+  header_row: z.number().int(),
+  data_start_row: z.number().int(),
+  order_key_column: z.number().int(),
+  order_key_header: z.string(),
+  tracking_number_column: z.number().int(),
+  tracking_number_header: z.string(),
+  courier_column: z.number().int().nullable(),
+  courier_header: z.string().nullable(),
+  default_courier: z.string().nullable(),
+  product_name_column: z.number().int().nullable(),
+  product_name_header: z.string().nullable(),
+  recipient_column: z.number().int().nullable(),
+  recipient_header: z.string().nullable(),
+})
+
+export type SupplierTrackingTemplateRow = z.infer<typeof supplierTrackingTemplateRowSchema>
+
 export const platformTrackingTemplateSchema = z.object({
   id: uuidString,
   platform: platformSchema,
@@ -705,6 +726,27 @@ export function toSupplierTemplate(row: SupplierTemplateRow) {
     columnMappings: z
       .array(columnMappingItemSchema)
       .parse(row.column_mappings),
+  }
+}
+
+export function toSupplierTrackingTemplate(row: SupplierTrackingTemplateRow) {
+  return {
+    id: row.id,
+    supplierId: row.supplier_id,
+    sheetName: row.sheet_name,
+    headerRow: row.header_row,
+    dataStartRow: row.data_start_row,
+    orderKeyColumn: row.order_key_column,
+    orderKeyHeader: row.order_key_header,
+    trackingNumberColumn: row.tracking_number_column,
+    trackingNumberHeader: row.tracking_number_header,
+    courierColumn: row.courier_column,
+    courierHeader: row.courier_header,
+    defaultCourier: row.default_courier,
+    productNameColumn: row.product_name_column,
+    productNameHeader: row.product_name_header,
+    recipientColumn: row.recipient_column,
+    recipientHeader: row.recipient_header,
   }
 }
 

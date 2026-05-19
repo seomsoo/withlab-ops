@@ -123,7 +123,11 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
               spName = sp.productName
               spCode = sp.productCode || undefined
               spPrice = sp.price ?? undefined
+            } else {
+              spName = order.displayProductName || spName
             }
+          } else if (!nameResult.applied) {
+            spName = order.displayProductName || spName
           }
 
           allocated.push({
@@ -265,7 +269,9 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
       allocated.push({
         orderId: order.id,
         supplierId: mapping.supplierId,
-        supplierProductName: nameResult.supplierProductName,
+        supplierProductName: nameResult.applied
+          ? nameResult.supplierProductName
+          : (order.displayProductName || nameResult.supplierProductName),
         supplierProductCode: nameResult.supplierProductCode,
         allocatedQuantity: order.quantity,
         isTemporaryOverride: false,
@@ -492,10 +498,15 @@ function buildAllocation(
   smart: boolean,
   reason?: string
 ): PendingAllocation {
+  const fallbackName = info.sp
+    ? info.sp.productName
+    : info.nameResult.applied
+      ? info.nameResult.supplierProductName
+      : order.displayProductName || info.nameResult.supplierProductName
   return {
     orderId: order.id,
     supplierId: info.mapping.supplierId,
-    supplierProductName: info.sp?.productName ?? info.nameResult.supplierProductName,
+    supplierProductName: fallbackName,
     supplierProductCode: info.sp?.productCode ?? info.nameResult.supplierProductCode,
     allocatedQuantity: order.quantity,
     isTemporaryOverride: false,

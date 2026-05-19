@@ -352,7 +352,8 @@ export default function SupplierAllocation() {
           group.platform as 'coupang' | 'toss',
           group.productName,
           group.optionName,
-          mode === 'today'
+          mode === 'today',
+          group.items[0]?.order.displayProductName
         )
       }
     },
@@ -691,7 +692,8 @@ export default function SupplierAllocation() {
               distributions,
               distributeDialog.platform as 'coupang' | 'toss',
               distributeDialog.productName,
-              distributeDialog.optionName
+              distributeDialog.optionName,
+              distributeDialog.items[0]?.order.displayProductName
             )
             setDistributeDialog(null)
           }}

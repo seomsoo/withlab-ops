@@ -261,6 +261,25 @@ export type SupplierTemplate = {
   columnMappings: ColumnMappingItem[]
 }
 
+export type SupplierTrackingTemplate = {
+  id: string
+  supplierId: string
+  sheetName: string
+  headerRow: number
+  dataStartRow: number
+  orderKeyColumn: number
+  orderKeyHeader: string
+  trackingNumberColumn: number
+  trackingNumberHeader: string
+  courierColumn: number | null
+  courierHeader: string | null
+  defaultCourier: string | null
+  productNameColumn: number | null
+  productNameHeader: string | null
+  recipientColumn: number | null
+  recipientHeader: string | null
+}
+
 export type PlatformTrackingTemplate = {
   id: string
   platform: Platform

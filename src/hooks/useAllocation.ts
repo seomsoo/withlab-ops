@@ -267,7 +267,8 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
       platform: Platform,
       productName: string,
       optionName: string,
-      isTemporaryOverride: boolean
+      isTemporaryOverride: boolean,
+      displayProductName?: string
     ) => {
       try {
         const nameMappingsAll = await getNameMappings()
@@ -290,6 +291,8 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
             resolvedProductName = resolved.productName
             resolvedProductCode = resolved.productCode || undefined
             resolvedPrice = resolved.price ?? undefined
+          } else if (displayProductName) {
+            resolvedProductName = displayProductName
           }
         }
 
@@ -355,6 +358,8 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
               resolvedProductName = resolved.productName
               resolvedProductCode = resolved.productCode || undefined
               resolvedPrice = resolved.price ?? undefined
+            } else if (order.displayProductName) {
+              resolvedProductName = order.displayProductName
             }
           }
 
@@ -481,7 +486,8 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
       distributions: { supplierId: string; count: number }[],
       platform: Platform,
       productName: string,
-      optionName: string
+      optionName: string,
+      displayProductName?: string
     ) => {
       try {
         const allocs = allocations.filter((a) => orderIds.includes(a.orderId))
@@ -522,7 +528,7 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
             newAllocations.push({
               orderId: oid,
               supplierId: dist.supplierId,
-              supplierProductName: resolved?.productName ?? nameResult.supplierProductName,
+              supplierProductName: resolved?.productName ?? (nameResult.applied ? nameResult.supplierProductName : (displayProductName || nameResult.supplierProductName)),
               supplierProductCode: resolved?.productCode ?? nameResult.supplierProductCode,
               allocatedQuantity: existingAlloc?.order.quantity ?? 1,
               isTemporaryOverride: false,

@@ -37,8 +37,9 @@ import {
 import { useWorkSession } from '@/hooks/useWorkSession'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { useTrackingUpload } from '@/hooks/useTrackingUpload'
+import { getTrackingsByImport } from '@/lib/supabase/trackings'
 
-import type { TrackingParseResult, MatchingResult } from '@/types'
+import type { TrackingParseResult, MatchingResult, Tracking, TrackingImport } from '@/types'
 
 const MAX_DISPLAY_ROWS = 20
 
@@ -71,7 +72,36 @@ export default function TrackingUpload() {
     supplierName: string
     trackingCount: number
   } | null>(null)
+  const [selectedImportId, setSelectedImportId] = useState<string | null>(null)
+  const [selectedImportTrackings, setSelectedImportTrackings] = useState<Tracking[]>([])
+  const [loadingImportDetail, setLoadingImportDetail] = useState(false)
   const [deleting, setDeleting] = useState(false)
+
+  const selectedImport = useMemo(
+    () => trackingImports.find((i) => i.id === selectedImportId) ?? null,
+    [trackingImports, selectedImportId]
+  )
+
+  const handleImportCardClick = async (imp: TrackingImport) => {
+    if (selectedImportId === imp.id) {
+      setSelectedImportId(null)
+      setSelectedImportTrackings([])
+      return
+    }
+    setSelectedImportId(imp.id)
+    setUploadResult(null)
+    try {
+      setLoadingImportDetail(true)
+      const trackings = await getTrackingsByImport(imp.id)
+      setSelectedImportTrackings(trackings)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '상세 조회 실패')
+      setSelectedImportId(null)
+      setSelectedImportTrackings([])
+    } finally {
+      setLoadingImportDetail(false)
+    }
+  }
 
   const isCompleted = session?.status === 'completed'
 
@@ -109,6 +139,8 @@ export default function TrackingUpload() {
       setUploading(true)
       const result = await uploadTracking(file, selectedSupplierId)
       setUploadResult(result)
+      setSelectedImportId(null)
+      setSelectedImportTrackings([])
       toast.success(
         `${selectedSupplier.name} 운송장 ${result.parseResult.meta.validCount}건을 업로드했습니다`
       )
@@ -131,6 +163,8 @@ export default function TrackingUpload() {
         confirmReupload.importId
       )
       setUploadResult(result)
+      setSelectedImportId(null)
+      setSelectedImportTrackings([])
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '재업로드 실패')
     } finally {
@@ -197,19 +231,25 @@ export default function TrackingUpload() {
                 return (
                   <div
                     key={imp.id}
-                    className="group relative rounded-radius-md border border-line bg-bg-subtle p-4 transition-colors hover:border-green-200 hover:bg-green-50/50"
+                    className={`group relative cursor-pointer rounded-radius-md border p-4 transition-colors ${
+                      selectedImportId === imp.id
+                        ? 'border-primary bg-blue-50/50'
+                        : 'border-line bg-bg-subtle hover:border-green-200 hover:bg-green-50/50'
+                    }`}
+                    onClick={() => void handleImportCardClick(imp)}
                   >
                     {!isCompleted && (
                       <button
                         className="absolute right-3 top-3 rounded-md p-1 text-t-faint opacity-0 transition-all hover:bg-red-100 hover:text-status-error group-hover:opacity-100"
                         title="삭제"
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation()
                           setConfirmDelete({
                             importId: imp.id,
                             supplierName: supplier?.name ?? '알 수 없음',
                             trackingCount: imp.validCount,
                           })
-                        }
+                        }}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -243,6 +283,168 @@ export default function TrackingUpload() {
                 )
               })}
             </div>
+
+            {/* 선택된 import 상세 뷰 */}
+            {selectedImport && (
+              <div className="mt-4 rounded-radius-md border border-line bg-white p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h4 className="text-sm font-bold text-t-strong">
+                    {activeSuppliers.find((s) => s.id === selectedImport.sourceSupplierId)?.name ?? '알 수 없음'} 파싱 결과
+                  </h4>
+                  <button
+                    className="text-xs text-t-faint hover:text-t-mute"
+                    onClick={() => {
+                      setSelectedImportId(null)
+                      setSelectedImportTrackings([])
+                    }}
+                  >
+                    닫기
+                  </button>
+                </div>
+
+                {loadingImportDetail ? (
+                  <div className="flex justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : (
+                  <>
+                    {/* 요약 */}
+                    <div className="mb-4 flex items-center gap-6 rounded-radius-md border border-line bg-bg-subtle px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="grid h-8 w-8 place-items-center rounded-full bg-green-100">
+                          <Check size={16} className="text-green-600" />
+                        </div>
+                        <div>
+                          <div className="text-lg font-bold text-t-strong">
+                            {selectedImport.validCount}
+                            <span className="text-sm font-normal text-t-mute">건</span>
+                          </div>
+                          <div className="text-xs text-t-mute">정상 파싱</div>
+                        </div>
+                      </div>
+                      <div className="h-8 w-px bg-line" />
+                      <div className="flex items-center gap-2">
+                        <div className={`grid h-8 w-8 place-items-center rounded-full ${selectedImport.invalidCount > 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
+                          <AlertCircle size={16} className={selectedImport.invalidCount > 0 ? 'text-red-600' : 'text-t-mute'} />
+                        </div>
+                        <div>
+                          <div className={`text-lg font-bold ${selectedImport.invalidCount > 0 ? 'text-red-600' : 'text-t-mute'}`}>
+                            {selectedImport.invalidCount}
+                            <span className="text-sm font-normal text-t-mute">건</span>
+                          </div>
+                          <div className="text-xs text-t-mute">오류</div>
+                        </div>
+                      </div>
+                      {selectedImport.detectedCourier && (
+                        <>
+                          <div className="h-8 w-px bg-line" />
+                          <div className="flex items-center gap-2">
+                            <div className="grid h-8 w-8 place-items-center rounded-full bg-blue-100">
+                              <Truck size={16} className="text-primary" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-t-strong">
+                                {selectedImport.detectedCourier}
+                              </div>
+                              <div className="text-xs text-t-mute">택배사</div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* 매칭 요약 */}
+                    {selectedImportTrackings.length > 0 && (
+                      <div className="mb-4 flex items-center gap-3 text-sm">
+                        <span className="flex items-center gap-1 text-green-700">
+                          <Check size={14} /> 매칭 {selectedImportTrackings.filter((t) => t.status === 'matched').length}건
+                        </span>
+                        {selectedImportTrackings.filter((t) => t.status === 'unmatched').length > 0 && (
+                          <span className="flex items-center gap-1 text-amber-600">
+                            <AlertCircle size={14} /> 미매칭 {selectedImportTrackings.filter((t) => t.status === 'unmatched').length}건
+                          </span>
+                        )}
+                        {selectedImportTrackings.filter((t) => t.status === 'duplicated').length > 0 && (
+                          <span className="text-amber-600">
+                            중복 {selectedImportTrackings.filter((t) => t.status === 'duplicated').length}건
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 오류 행 상세 */}
+                    {selectedImport.invalidRows.length > 0 && (
+                      <div className="mb-4 rounded-radius-md border border-red-200 bg-red-50 p-3">
+                        <p className="mb-2 text-sm font-medium text-red-700">
+                          파싱 오류 {selectedImport.invalidRows.length}건
+                        </p>
+                        <div className="space-y-1">
+                          {selectedImport.invalidRows.slice(0, 10).map((row, i) => (
+                            <p key={i} className="text-xs text-red-600">
+                              {row.rowNumber}행: {row.reason}
+                            </p>
+                          ))}
+                          {selectedImport.invalidRows.length > 10 && (
+                            <p className="text-xs text-red-400">
+                              ... 외 {selectedImport.invalidRows.length - 10}건
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 운송장 테이블 */}
+                    {selectedImportTrackings.length > 0 && (
+                      <div className="rounded-radius-md border border-line overflow-x-auto">
+                        <Table className="min-w-[600px]">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-12">#</TableHead>
+                              <TableHead>원본 주문번호</TableHead>
+                              <TableHead>택배사</TableHead>
+                              <TableHead>운송장번호</TableHead>
+                              <TableHead>매칭 상태</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {selectedImportTrackings.slice(0, MAX_DISPLAY_ROWS).map((t, i) => (
+                              <TableRow key={t.id}>
+                                <TableCell className="text-t-mute">{i + 1}</TableCell>
+                                <TableCell className="font-mono text-xs">{t.rawOrderKey}</TableCell>
+                                <TableCell>{t.trackingCompany}</TableCell>
+                                <TableCell className="font-mono text-xs">{t.trackingNumber}</TableCell>
+                                <TableCell>
+                                  {t.status === 'matched' && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                                      <Check size={10} /> 매칭
+                                    </span>
+                                  )}
+                                  {t.status === 'unmatched' && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                      미매칭
+                                    </span>
+                                  )}
+                                  {t.status === 'duplicated' && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+                                      중복
+                                    </span>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {selectedImportTrackings.length > MAX_DISPLAY_ROWS && (
+                          <div className="border-t border-line bg-bg-subtle px-4 py-2 text-center text-xs text-t-mute">
+                            ... 외 {selectedImportTrackings.length - MAX_DISPLAY_ROWS}건
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -420,6 +622,27 @@ export default function TrackingUpload() {
                 </span>
               )}
             </div>
+
+            {/* 오류 행 상세 */}
+            {uploadResult.parseResult.invalidRows.length > 0 && (
+              <div className="mb-4 rounded-radius-md border border-red-200 bg-red-50 p-3">
+                <p className="mb-2 text-sm font-medium text-red-700">
+                  파싱 오류 {uploadResult.parseResult.invalidRows.length}건
+                </p>
+                <div className="space-y-1">
+                  {uploadResult.parseResult.invalidRows.slice(0, 10).map((row, i) => (
+                    <p key={i} className="text-xs text-red-600">
+                      {row.rowNumber}행: {row.reason}
+                    </p>
+                  ))}
+                  {uploadResult.parseResult.invalidRows.length > 10 && (
+                    <p className="text-xs text-red-400">
+                      ... 외 {uploadResult.parseResult.invalidRows.length - 10}건
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* 운송장 테이블 */}
             {displayedTrackings.length > 0 && (

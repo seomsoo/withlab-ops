@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import * as XLSX from 'xlsx'
 
-import { parseTracking } from './trackingParser'
+import { parseTracking, parseTrackingWithTemplate } from './trackingParser'
+
+import type { SupplierTrackingTemplate } from '@/types'
 
 function makeWorkbook(
   headers: string[],
@@ -132,13 +134,13 @@ describe('trackingParser', () => {
     expect(result.invalidRows[0]!.reason).toBe('운송장번호 누락')
   })
 
-  it('trackingNumber만 있고 rawOrderKey 없음 → invalidRow', () => {
+  it('trackingNumber만 있고 rawOrderKey 없음 → 스킵 (수량분할 연속행)', () => {
     const wb = makeWorkbook(A_HEADERS, [makeARow({ orderKey: '' })])
     const result = parseTracking(wb)
 
     expect(result.trackings).toHaveLength(0)
-    expect(result.invalidRows).toHaveLength(1)
-    expect(result.invalidRows[0]!.reason).toBe('주문번호 누락')
+    expect(result.invalidRows).toHaveLength(0)
+    expect(result.meta.skippedRows).toBe(1)
   })
 
   it('택배사 누락 → invalidRow', () => {
@@ -211,7 +213,237 @@ describe('trackingParser', () => {
 
     expect(result.meta.totalRows).toBe(4)
     expect(result.meta.validCount).toBe(2)
-    expect(result.meta.invalidCount).toBe(1)
+    expect(result.meta.invalidCount).toBe(0)
+    expect(result.meta.skippedRows).toBe(2)
+  })
+})
+
+// --- parseTrackingWithTemplate ---
+
+const CUSTOM_HEADERS = ['No', '상품명', '수령인', '주문키', '택배사', '송장']
+
+function makeTemplateWorkbook(
+  headers: string[],
+  dataRows: unknown[][],
+  sheetName = 'Sheet1'
+): XLSX.WorkBook {
+  const aoa = [headers, ...dataRows]
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+  return wb
+}
+
+function makeTemplate(overrides: Partial<SupplierTrackingTemplate> = {}): SupplierTrackingTemplate {
+  return {
+    id: 'tpl-1',
+    supplierId: 'sup-1',
+    sheetName: '',
+    headerRow: 1,
+    dataStartRow: 2,
+    orderKeyColumn: 3,
+    orderKeyHeader: '주문키',
+    trackingNumberColumn: 5,
+    trackingNumberHeader: '송장',
+    courierColumn: 4,
+    courierHeader: '택배사',
+    defaultCourier: null,
+    productNameColumn: 1,
+    productNameHeader: '상품명',
+    recipientColumn: 2,
+    recipientHeader: '수령인',
+    ...overrides,
+  }
+}
+
+describe('parseTrackingWithTemplate', () => {
+  it('기본 파싱 — 컬럼 인덱스로 데이터 추출', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과 3kg', '홍길동', 'ORD-001', 'CJ대한통운', '1234567890'],
+    ])
+    const result = parseTrackingWithTemplate(wb, makeTemplate())
+
+    expect(result.trackings).toHaveLength(1)
+    expect(result.trackings[0]!.rawOrderKey).toBe('ORD-001')
+    expect(result.trackings[0]!.trackingCompany).toBe('CJ대한통운')
+    expect(result.trackings[0]!.trackingNumber).toBe('1234567890')
+    expect(result.trackings[0]!.productName).toBe('사과 3kg')
+    expect(result.trackings[0]!.recipientName).toBe('홍길동')
+  })
+
+  it('택배사 컬럼 없음 → defaultCourier 사용', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', '', '1234567890'],
+    ])
+    const template = makeTemplate({
+      courierColumn: null,
+      courierHeader: null,
+      defaultCourier: 'CJ대한통운',
+    })
+    const result = parseTrackingWithTemplate(wb, template)
+
+    expect(result.trackings).toHaveLength(1)
+    expect(result.trackings[0]!.trackingCompany).toBe('CJ대한통운')
+  })
+
+  it('택배사 컬럼 매핑 + 빈 셀 → defaultCourier로 fallback', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', '', '1234567890'],
+      [2, '배', '김철수', 'ORD-002', '한진택배', '9876543210'],
+    ])
+    const template = makeTemplate({ defaultCourier: 'CJ대한통운' })
+    const result = parseTrackingWithTemplate(wb, template)
+
+    expect(result.trackings).toHaveLength(2)
+    expect(result.trackings[0]!.trackingCompany).toBe('CJ대한통운')
+    expect(result.trackings[1]!.trackingCompany).toBe('한진택배')
+  })
+
+  it('택배사 컬럼 매핑 + 빈 셀 + defaultCourier 없음 → 택배사 누락', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', '', '1234567890'],
+    ])
+    const template = makeTemplate({ defaultCourier: null })
+    const result = parseTrackingWithTemplate(wb, template)
+
+    expect(result.trackings).toHaveLength(0)
+    expect(result.invalidRows).toHaveLength(1)
+    expect(result.invalidRows[0]!.reason).toBe('택배사 누락')
+  })
+
+  it('주문번호 누락 → 스킵 (수량분할 연속행)', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', '', 'CJ대한통운', '1234567890'],
+    ])
+    const result = parseTrackingWithTemplate(wb, makeTemplate())
+
+    expect(result.trackings).toHaveLength(0)
+    expect(result.invalidRows).toHaveLength(0)
     expect(result.meta.skippedRows).toBe(1)
+  })
+
+  it('운송장번호 누락 → invalidRow', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', 'CJ대한통운', ''],
+    ])
+    const result = parseTrackingWithTemplate(wb, makeTemplate())
+
+    expect(result.invalidRows).toHaveLength(1)
+    expect(result.invalidRows[0]!.reason).toBe('운송장번호 누락')
+  })
+
+  it('빈 행 스킵 — 주문번호+운송장번호 모두 비어있으면 skippedRows', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', 'CJ대한통운', '1234567890'],
+      ['', '', '', '', '', ''],
+      [3, '배', '김철수', 'ORD-002', '한진택배', '9876543210'],
+    ])
+    const result = parseTrackingWithTemplate(wb, makeTemplate())
+
+    expect(result.trackings).toHaveLength(2)
+    expect(result.meta.skippedRows).toBe(1)
+  })
+
+  it('시트명 지정 — template.sheetName으로 시트 선택', () => {
+    const wb = XLSX.utils.book_new()
+    const ws1 = XLSX.utils.aoa_to_sheet([['A'], ['B']])
+    const ws2 = XLSX.utils.aoa_to_sheet([
+      CUSTOM_HEADERS,
+      [1, '사과', '홍길동', 'ORD-001', 'CJ대한통운', '1234567890'],
+    ])
+    XLSX.utils.book_append_sheet(wb, ws1, '요약')
+    XLSX.utils.book_append_sheet(wb, ws2, '운송장')
+    const template = makeTemplate({ sheetName: '운송장' })
+    const result = parseTrackingWithTemplate(wb, template)
+
+    expect(result.trackings).toHaveLength(1)
+    expect(result.trackings[0]!.rawOrderKey).toBe('ORD-001')
+  })
+
+  it('시트명 빈 문자열 → 첫 번째 시트 사용', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', 'CJ대한통운', '1234567890'],
+    ], '데이터')
+    const template = makeTemplate({ sheetName: '' })
+    const result = parseTrackingWithTemplate(wb, template)
+
+    expect(result.trackings).toHaveLength(1)
+  })
+
+  it('존재하지 않는 시트명 → 에러', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [[]], 'Sheet1')
+    const template = makeTemplate({ sheetName: '없는시트' })
+
+    expect(() => parseTrackingWithTemplate(wb, template)).toThrow('시트 "없는시트"을(를) 찾을 수 없습니다')
+  })
+
+  it('헤더행/데이터시작행 커스텀 — 2행 헤더, 4행 데이터 시작', () => {
+    const aoa = [
+      ['안내문구'],
+      CUSTOM_HEADERS,
+      ['수정불가'],
+      [1, '사과', '홍길동', 'ORD-001', 'CJ대한통운', '1234567890'],
+    ]
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+
+    const template = makeTemplate({ headerRow: 2, dataStartRow: 4 })
+    const result = parseTrackingWithTemplate(wb, template)
+
+    expect(result.trackings).toHaveLength(1)
+    expect(result.trackings[0]!.rawOrderKey).toBe('ORD-001')
+    expect(result.trackings[0]!.rawRowNumber).toBe(4)
+  })
+
+  it('데이터 행이 없으면 빈 결과 반환', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [])
+    const template = makeTemplate({ dataStartRow: 5 })
+    const result = parseTrackingWithTemplate(wb, template)
+
+    expect(result.trackings).toHaveLength(0)
+    expect(result.meta.totalRows).toBe(0)
+  })
+
+  it('productNameColumn/recipientColumn null → undefined', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', 'CJ대한통운', '1234567890'],
+    ])
+    const template = makeTemplate({
+      productNameColumn: null,
+      productNameHeader: null,
+      recipientColumn: null,
+      recipientHeader: null,
+    })
+    const result = parseTrackingWithTemplate(wb, template)
+
+    expect(result.trackings[0]!.productName).toBeUndefined()
+    expect(result.trackings[0]!.recipientName).toBeUndefined()
+  })
+
+  it('rawRowNumber가 1-based 엑셀 행 번호', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', 'CJ대한통운', '111'],
+      [2, '배', '김철수', 'ORD-002', '한진택배', '222'],
+    ])
+    const result = parseTrackingWithTemplate(wb, makeTemplate())
+
+    expect(result.trackings[0]!.rawRowNumber).toBe(2)
+    expect(result.trackings[1]!.rawRowNumber).toBe(3)
+  })
+
+  it('meta 필드 올바르게 계산', () => {
+    const wb = makeTemplateWorkbook(CUSTOM_HEADERS, [
+      [1, '사과', '홍길동', 'ORD-001', 'CJ대한통운', '111'],
+      [2, '배', '김철수', '', 'CJ대한통운', '222'],
+      ['', '', '', '', '', ''],
+    ])
+    const result = parseTrackingWithTemplate(wb, makeTemplate())
+
+    expect(result.meta.totalRows).toBe(3)
+    expect(result.meta.validCount).toBe(1)
+    expect(result.meta.invalidCount).toBe(0)
+    expect(result.meta.skippedRows).toBe(2)
+    expect(result.meta.detectedCourier).toBe('CJ대한통운')
   })
 })

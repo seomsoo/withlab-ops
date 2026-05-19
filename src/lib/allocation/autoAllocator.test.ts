@@ -204,7 +204,7 @@ describe('autoAllocate', () => {
       suppliers: [makeSupplier()],
     })
 
-    expect(result.allocated[0]!.supplierProductName).toBe('참외 5kg')
+    expect(result.allocated[0]!.supplierProductName).toBe('참외 5kg 가정용')
     expect(result.allocated[0]!.supplierProductCode).toBeUndefined()
     expect(result.allocated[0]!.nameMappingApplied).toBe(false)
   })
