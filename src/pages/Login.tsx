@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
+import { User, Lock, Eye, EyeOff } from 'lucide-react'
 
 import { useAuth } from '@/hooks/useAuth'
 import { Logo } from '@/components/ui/Logo'
@@ -31,7 +31,10 @@ export default function Login() {
     setSubmitting(true)
 
     try {
-      await signIn(email.trim(), password)
+      const loginEmail = email.trim().includes('@')
+        ? email.trim()
+        : `${email.trim()}@withlab.kr`
+      await signIn(loginEmail, password)
       navigate(from, { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : '로그인 중 오류가 발생했습니다')
@@ -71,17 +74,17 @@ export default function Login() {
 
           {/* Form */}
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            {/* Email */}
+            {/* ID */}
             <div className="flex flex-col gap-2">
               <label className="text-[12.5px] font-semibold text-t-mid">
-                이메일
+                아이디
               </label>
               <div className="flex h-12 items-center gap-2.5 rounded-radius-md border border-transparent bg-gray-100 px-3.5 transition-all duration-150 focus-within:border-primary focus-within:bg-card focus-within:shadow-[0_0_0_4px_rgba(49,130,246,.12)]">
-                <Mail size={16} className="text-t-mute" />
+                <User size={16} className="text-t-mute" />
                 <input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="name@withlab.kr"
+                  type="text"
+                  autoComplete="username"
+                  placeholder="아이디"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="flex-1 border-none bg-transparent text-[14.5px] text-t-strong outline-none placeholder:text-gray-500"
