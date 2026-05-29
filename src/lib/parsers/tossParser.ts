@@ -1,6 +1,6 @@
 import type { WorkBook } from 'xlsx'
 
-import { sheetToRows, cellToString, cellToInt } from '@/utils/excel'
+import { sheetToRows, cellToString, cellToInt, cellToDateString } from '@/utils/excel'
 import { extractDigits } from '@/utils/phone'
 
 import type { StandardOrder, InvalidRow, DuplicateRow, ParseResult } from '@/types'
@@ -171,7 +171,7 @@ export function parseTossOrders(workbook: WorkBook): ParseResult {
       orderNo,
       orderItemNo: matchingKey,
       matchingKey,
-      orderDate: cellToString(row[col.orderDate]),
+      orderDate: cellToDateString(row[col.orderDate]),
       productName,
       optionName: cellToString(row[col.optionName]),
       displayProductName: [productName, cellToString(row[col.optionName])].filter(Boolean).join(' '),
