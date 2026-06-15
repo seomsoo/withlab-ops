@@ -91,6 +91,47 @@ describe('parseTossOrders', () => {
     expect(order.quantity).toBe(1)
   })
 
+  it('정상: 헤더가 1행인 새 토스 양식 파싱', () => {
+    const header = [
+      '주문번호', '주문상품번호', '주문상태', '발송기한', '배송속성',
+      '받은 혜택', '물류사', '택배사', '송장번호', '상품명',
+      '옵션명', '주문건수', '상품ID', '상품 관리 코드', '옵션 ID',
+      '옵션 관리 코드', '구매자명', '구매자 연락처', '수령인명', '수령인 연락처',
+      '우편번호', '배송지', '주문요청사항', '주문일시', '구매확정일',
+      '희망배송일', '발송처리일시', '배송완료일시', '주문금액', '배송비 묶음 번호',
+      '배송비 합계',
+    ]
+    const editableRow = header.map(() => '수정 불가')
+    const values: Record<string, unknown> = {
+      '주문번호': '233408525',
+      '주문상품번호': '257915173',
+      '주문상태': '결제완료',
+      '상품명': '성주 꿀참외, 가정용 참외',
+      '옵션명': '1박스, 10kg',
+      '주문건수': '1',
+      '구매자명': '박경자',
+      '구매자 연락처': '050876719447',
+      '수령인명': '박경자',
+      '수령인 연락처': '050876719447',
+      '우편번호': '37605',
+      '배송지': '경상북도 포항시 북구 새천년대로 1276',
+      '주문요청사항': '집 앞에 놔주세요',
+      '주문일시': 46188.34679398148,
+    }
+    const dataRow = header.map((h) => values[h] ?? '')
+    const ws = XLSX.utils.aoa_to_sheet([header, editableRow, dataRow])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '주문내역')
+
+    const result = parseTossOrders(wb)
+
+    expect(result.orders).toHaveLength(1)
+    expect(result.invalidRows).toHaveLength(0)
+    expect(result.orders[0]!.rawRowNumber).toBe(3)
+    expect(result.orders[0]!.matchingKey).toBe('257915173')
+    expect(result.orders[0]!.displayProductName).toBe('성주 꿀참외, 가정용 참외 1박스, 10kg')
+  })
+
   it('정상: matchingKey는 주문상품번호 (orderItemNo)', () => {
     const wb = makeTossWorkbook([makeRow()])
     const result = parseTossOrders(wb)

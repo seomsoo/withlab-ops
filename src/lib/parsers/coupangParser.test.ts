@@ -3,7 +3,13 @@ import * as XLSX from 'xlsx'
 
 import { parseCoupangOrders } from './coupangParser'
 
-function makeCoupangWorkbook(dataRows: unknown[][]): XLSX.WorkBook {
+function makeCoupangWorkbook(
+  dataRows: unknown[][],
+  options: {
+    sheetName?: string
+    prefixRows?: unknown[][]
+  } = {}
+): XLSX.WorkBook {
   const header = [
     '번호', '묶음배송번호', '주문번호', '택배사', '운송장번호',
     '분리배송 Y/N', '분리배송 출고예정일', '주문시 출고예정일', '출고일(발송일)',
@@ -16,10 +22,10 @@ function makeCoupangWorkbook(dataRows: unknown[][]): XLSX.WorkBook {
     '구매확정일자', '개인통관번호(PCCC)', '통관용수취인전화번호', '기타',
     '결제위치', '배송유형',
   ]
-  const aoa = [header, ...dataRows]
+  const aoa = [...(options.prefixRows ?? []), header, ...dataRows]
   const ws = XLSX.utils.aoa_to_sheet(aoa)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Delivery')
+  XLSX.utils.book_append_sheet(wb, ws, options.sheetName ?? 'Delivery')
   return wb
 }
 
@@ -152,6 +158,29 @@ describe('parseCoupangOrders', () => {
     expect(result.orders[1]!.rawRowNumber).toBe(3)
   })
 
+  it('정상: 헤더가 1행 아래로 내려가도 파싱', () => {
+    const wb = makeCoupangWorkbook(
+      [makeRow({ '주문번호': 'A001' })],
+      { prefixRows: [['다운로드 안내']] }
+    )
+    const result = parseCoupangOrders(wb)
+
+    expect(result.orders).toHaveLength(1)
+    expect(result.orders[0]!.orderNo).toBe('A001')
+    expect(result.orders[0]!.rawRowNumber).toBe(3)
+  })
+
+  it('정상: Delivery가 아닌 시트명에서도 쿠팡 헤더를 찾아 파싱', () => {
+    const wb = makeCoupangWorkbook(
+      [makeRow({ '주문번호': 'A001' })],
+      { sheetName: '주문배송관리' }
+    )
+    const result = parseCoupangOrders(wb)
+
+    expect(result.orders).toHaveLength(1)
+    expect(result.orders[0]!.orderNo).toBe('A001')
+  })
+
   it('정상: 표준 필드는 trim, rawValues는 원본 보존', () => {
     const wb = makeCoupangWorkbook([
       makeRow({
@@ -270,11 +299,11 @@ describe('parseCoupangOrders', () => {
     expect(result.duplicateRows[0]!.rowNumber).toBe(3)
   })
 
-  it('에러: Delivery 시트 없으면 throw', () => {
+  it('에러: 쿠팡 헤더 행을 찾을 수 없으면 throw', () => {
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.aoa_to_sheet([['dummy']])
     XLSX.utils.book_append_sheet(wb, ws, 'Other')
-    expect(() => parseCoupangOrders(wb)).toThrow('쿠팡 주문 시트(Delivery)를 찾을 수 없습니다')
+    expect(() => parseCoupangOrders(wb)).toThrow('쿠팡 헤더 행을 찾을 수 없습니다')
   })
 
   it('정상: 빈 파일 (데이터 행 0건) → orders 빈 배열', () => {

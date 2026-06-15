@@ -25,6 +25,9 @@ const REQUIRED_HEADERS = {
 
 type ColMap = Record<keyof typeof REQUIRED_HEADERS, number>
 
+const COUPANG_MARKERS = ['번호', '묶음배송번호', '주문번호']
+const MAX_HEADER_SCAN_ROWS = 10
+
 function buildColMap(headerRow: unknown[]): ColMap | null {
   const values = headerRow.map((v) => cellToString(v))
   const map = {} as Record<string, number>
@@ -49,14 +52,48 @@ function buildRaw(row: unknown[], headerRow: unknown[]): Record<string, unknown>
   return obj
 }
 
-export function parseCoupangOrders(workbook: WorkBook): ParseResult {
-  const sheet = workbook.Sheets[SHEET_NAME]
-  if (!sheet) {
-    throw new Error('쿠팡 주문 시트(Delivery)를 찾을 수 없습니다')
+function findHeaderRowIndex(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(MAX_HEADER_SCAN_ROWS, rows.length); i++) {
+    const row = rows[i]
+    if (!row) continue
+    const values = row.map((v) => cellToString(v))
+    const matchCount = COUPANG_MARKERS.filter((m) => values.includes(m)).length
+    if (matchCount >= 2) return i
+  }
+  return -1
+}
+
+function findCoupangSheet(workbook: WorkBook): {
+  rows: unknown[][]
+  headerIdx: number
+} | null {
+  const preferredSheet = workbook.Sheets[SHEET_NAME]
+  if (preferredSheet) {
+    const rows = sheetToRows(preferredSheet)
+    const headerIdx = findHeaderRowIndex(rows)
+    if (headerIdx !== -1) return { rows, headerIdx }
   }
 
-  const allRows = sheetToRows(sheet)
-  const headerRow = allRows[0]
+  for (const sheetName of workbook.SheetNames) {
+    if (sheetName === SHEET_NAME) continue
+    const sheet = workbook.Sheets[sheetName]
+    if (!sheet) continue
+    const rows = sheetToRows(sheet)
+    const headerIdx = findHeaderRowIndex(rows)
+    if (headerIdx !== -1) return { rows, headerIdx }
+  }
+
+  return null
+}
+
+export function parseCoupangOrders(workbook: WorkBook): ParseResult {
+  const detectedSheet = findCoupangSheet(workbook)
+  if (!detectedSheet) {
+    throw new Error('쿠팡 헤더 행을 찾을 수 없습니다')
+  }
+
+  const { rows: allRows, headerIdx } = detectedSheet
+  const headerRow = allRows[headerIdx]
   if (!headerRow) {
     throw new Error('쿠팡 헤더 행을 찾을 수 없습니다')
   }
@@ -70,7 +107,8 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
   }
 
   const columnCount = headerRow.length
-  const dataRows = allRows.slice(1)
+  const dataStartIndex = headerIdx + 1
+  const dataRows = allRows.slice(dataStartIndex)
 
   const orders: StandardOrder[] = []
   const invalidRows: InvalidRow[] = []
@@ -78,7 +116,7 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
 
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i]!
-    const excelRowNumber = i + 2
+    const excelRowNumber = i + dataStartIndex + 1
     const normalized = normalizeRowValues(row, columnCount)
 
     const orderNo = cellToString(row[col.orderNo])
