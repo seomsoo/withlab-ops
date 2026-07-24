@@ -548,7 +548,7 @@ using (bucket_id = 'templates');
 > 토스의 경우 1 주문에 여러 상품(주문 라인)이 들어갈 수 있는데, 이를 각각 별도 row로 저장한다.
 >
 > 매칭키 규칙:
-> - 쿠팡: `matching_key = 주문번호` (쿠팡은 상품마다 주문번호가 따로 발급됨)
+> - 쿠팡: `matching_key = 묶음배송번호` (한 주문번호에 여러 배송 묶음이 존재할 수 있음)
 > - 토스: `matching_key = 주문상품번호` (1주문 다상품을 구분하기 위함)
 >
 > 따라서 `unique(work_session_id, platform, matching_key)`는 동일 작업건 내 같은 라인의 중복 업로드를 방지한다.

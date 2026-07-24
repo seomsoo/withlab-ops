@@ -224,7 +224,7 @@ describe('matchingEngine', () => {
     expect(result.matched).toHaveLength(1)
   })
 
-  it('쿠팡 matchingKey(주문번호)로 매칭', () => {
+  it('쿠팡 matchingKey(묶음배송번호)로 매칭', () => {
     const result = runMatching({
       parsedTrackings: [makeParsedTracking({ rawOrderKey: '31100187326921' })],
       orders: [makeOrder({ platform: 'coupang', matchingKey: '31100187326921' })],

@@ -1,13 +1,24 @@
 import type { WorkBook } from 'xlsx'
 
-import { sheetToRows, cellToString, cellToInt, cellToDateString } from '@/utils/excel'
+import {
+  sheetToRows,
+  cellToString,
+  cellToInt,
+  cellToDateString,
+} from '@/utils/excel'
 import { extractDigits } from '@/utils/phone'
 
-import type { StandardOrder, InvalidRow, DuplicateRow, ParseResult } from '@/types'
+import type {
+  StandardOrder,
+  InvalidRow,
+  DuplicateRow,
+  ParseResult,
+} from '@/types'
 
 const SHEET_NAME = 'Delivery'
 
 const REQUIRED_HEADERS = {
+  shipmentBoxId: '묶음배송번호',
   orderNo: '주문번호',
   orderDate: '주문일',
   productName: '등록상품명',
@@ -43,7 +54,10 @@ function normalizeRowValues(row: unknown[], columnCount: number): unknown[] {
   return Array.from({ length: columnCount }, (_, i) => row[i] ?? null)
 }
 
-function buildRaw(row: unknown[], headerRow: unknown[]): Record<string, unknown> {
+function buildRaw(
+  row: unknown[],
+  headerRow: unknown[]
+): Record<string, unknown> {
   const obj: Record<string, unknown> = {}
   for (let i = 0; i < headerRow.length; i++) {
     const key = cellToString(headerRow[i])
@@ -119,18 +133,19 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
     const excelRowNumber = i + dataStartIndex + 1
     const normalized = normalizeRowValues(row, columnCount)
 
+    const shipmentBoxId = cellToString(row[col.shipmentBoxId])
     const orderNo = cellToString(row[col.orderNo])
     const productName = cellToString(row[col.productName])
 
-    if (orderNo === '' && productName === '') {
+    if (shipmentBoxId === '' && orderNo === '' && productName === '') {
       skippedRows++
       continue
     }
 
-    if (orderNo === '' || productName === '') {
+    if (shipmentBoxId === '' || orderNo === '' || productName === '') {
       invalidRows.push({
         rowNumber: excelRowNumber,
-        reason: '주문번호 또는 상품명 누락',
+        reason: '묶음배송번호, 주문번호 또는 상품명 누락',
         rawData: normalized,
       })
       continue
@@ -192,12 +207,13 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
       id: crypto.randomUUID(),
       platform: 'coupang',
       orderNo,
-      orderItemNo: orderNo,
-      matchingKey: orderNo,
+      orderItemNo: shipmentBoxId,
+      matchingKey: shipmentBoxId,
       orderDate: cellToDateString(row[col.orderDate]),
       productName,
       optionName: cellToString(row[col.optionName]),
-      displayProductName: cellToString(row[col.displayProductName]) || productName,
+      displayProductName:
+        cellToString(row[col.displayProductName]) || productName,
       quantity,
       buyerName: cellToString(row[col.buyerName]),
       buyerPhone,
@@ -222,7 +238,8 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
     duplicateRows,
     meta: {
       platform: 'coupang',
-      totalRows: deduplicated.length + invalidRows.length + duplicateRows.length,
+      totalRows:
+        deduplicated.length + invalidRows.length + duplicateRows.length,
       skippedRows,
       validRows: deduplicated.length,
       invalidRows: invalidRows.length,

@@ -84,7 +84,7 @@
 - types ↔ REF 문서: ✅ — types/index.ts가 Phase 3 스펙 정의와 정확히 일치. REF_데이터_모델.md의 ParseResult/InvalidRow는 Phase 3 이전 버전이므로 스펙이 우선.
 - schemas ↔ types: ✅ — standardOrderSchema, orderImportSchema, invalidRowSchema, duplicateRowSchema 모두 타입과 일치
 - DB ↔ TS 변환: ✅ — OrderImportRow(snake_case) → toOrderImport(camelCase) 변환 정확, invalidRows/duplicateRows에 Zod 파싱 적용
-- 매칭키 일관성: ✅ — 쿠팡(orderNo=matchingKey), 토스(orderItemNo=matchingKey) 파서/타입/DB 전체 일관
+- 매칭키 일관성: ✅ — 쿠팡(묶음배송번호=matchingKey), 토스(orderItemNo=matchingKey) 파서/타입/DB 전체 일관
 
 ### check-excel
 - 쿠팡 파서: ✅ — 12개 컬럼 매핑 모두 REF_엑셀_구조.md와 정확 일치 (idx 2,9,10,11,22,24,25,26,27,28,29,30)

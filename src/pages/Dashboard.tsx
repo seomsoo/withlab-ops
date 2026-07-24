@@ -131,7 +131,7 @@ function QuickActions({
           운송장 매칭 시작
         </div>
         <p className="mt-2 max-w-[340px] text-[13.5px] leading-[1.55] text-white/78">
-          공급처에서 받은 운송장 파일을 올리면 주문번호와 자동으로 연결돼요.
+          공급처에서 받은 운송장 파일을 올리면 매칭번호와 자동으로 연결돼요.
         </p>
         <div className="mt-auto flex items-center gap-1.5 pt-6 text-[13.5px] font-bold">
           시작하기

@@ -1272,7 +1272,7 @@ const GroupRow = memo(function GroupRow({
                 <thead>
                   <tr className="text-left text-t-mute">
                     <th className="py-1.5 pr-3">플랫폼</th>
-                    <th className="py-1.5 pr-3">주문번호</th>
+                    <th className="py-1.5 pr-3">매칭번호</th>
                     <th className="py-1.5 pr-3">수취인</th>
                     <th className="py-1.5 pr-3">수량</th>
                     <th className="py-1.5">주소</th>

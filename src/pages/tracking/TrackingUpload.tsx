@@ -400,7 +400,7 @@ export default function TrackingUpload() {
                           <TableHeader>
                             <TableRow>
                               <TableHead className="w-12">#</TableHead>
-                              <TableHead>원본 주문번호</TableHead>
+                              <TableHead>원본 매칭번호</TableHead>
                               <TableHead>택배사</TableHead>
                               <TableHead>운송장번호</TableHead>
                               <TableHead>매칭 상태</TableHead>
@@ -651,7 +651,7 @@ export default function TrackingUpload() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
-                      <TableHead>원본 주문번호</TableHead>
+                      <TableHead>원본 매칭번호</TableHead>
                       <TableHead>상품명</TableHead>
                       <TableHead>수령인</TableHead>
                       <TableHead>택배사</TableHead>

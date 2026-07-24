@@ -379,7 +379,7 @@ export default function TrackingMatchResult() {
               <TableRow>
                 <TableHead className="w-20">상태</TableHead>
                 {uniqueSupplierIds.length > 1 && <TableHead>공급처</TableHead>}
-                <TableHead>주문번호</TableHead>
+                <TableHead>매칭번호</TableHead>
                 <TableHead>상품명 / 수취인</TableHead>
                 <TableHead>택배사</TableHead>
                 <TableHead>운송장번호 / 사유</TableHead>
@@ -490,7 +490,7 @@ export default function TrackingMatchResult() {
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-t-mute" />
               <Input
                 className="pl-9"
-                placeholder="주문번호 또는 수취인 이름으로 검색"
+                placeholder="매칭번호 또는 수취인 이름으로 검색"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -504,7 +504,7 @@ export default function TrackingMatchResult() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>주문번호</TableHead>
+                      <TableHead>매칭번호</TableHead>
                       <TableHead>상품명</TableHead>
                       <TableHead>수취인</TableHead>
                       <TableHead>공급처</TableHead>

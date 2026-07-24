@@ -330,7 +330,7 @@ for each parsedTracking:
 ```
 
 **주의사항:**
-- matchingKey로 매칭 (쿠팡=주문번호, 토스=주문상품번호) — orders에 이미 올바른 matchingKey가 저장되어 있으므로 파서 레벨에서 구분 불필요
+- matchingKey로 매칭 (쿠팡=묶음배송번호, 토스=주문상품번호) — orders에 이미 올바른 matchingKey가 저장되어 있으므로 파서 레벨에서 구분 불필요
 - 같은 작업건(work_session) 내에서만 매칭
 - 하나의 공급처 파일에 쿠팡/토스 주문이 섞여 있을 수 있음 → matchingKey로 자동 판별, 플랫폼 출력 단계에서 order.platform 기준 분리
 - 현재 배치 내 중복도 체크: 같은 rawOrderKey가 2회 이상 등장하고 같은 allocation에 매칭되면 첫 번째만 matched, 나머지는 duplicated
@@ -355,7 +355,7 @@ for each parsedTracking:
 8. invalid: rawOrderKey 빈 문자열
 9. invalid: trackingNumber 빈 문자열
 10. 정상: 공백 trim 후 매칭 — " 12345 " = "12345"
-11. 정상: 쿠팡 matchingKey(주문번호)로 매칭
+11. 정상: 쿠팡 matchingKey(묶음배송번호)로 매칭
 12. 정상: 토스 matchingKey(주문상품번호)로 매칭
 13. 혼합: matched + unmatched + duplicated + invalid 혼합 결과
 14. 정상: 하나의 공급처 파일에 쿠팡/토스 주문이 섞여도 매칭됨

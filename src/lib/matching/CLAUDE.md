@@ -32,6 +32,6 @@ for each tracking row:
 - 매핑 없으면 원본 그대로 + "매핑 필요" 경고 플래그
 
 ## 주의사항
-- matchingKey로 매칭 (쿠팡=주문번호, 토스=주문상품번호)
+- matchingKey로 매칭 (쿠팡=묶음배송번호, 토스=주문상품번호)
 - 같은 작업건(work_session) 내에서만 매칭
 - 다른 날짜/플랫폼 주문이 섞여 들어올 수 있음 → 정상적으로 unmatched 처리

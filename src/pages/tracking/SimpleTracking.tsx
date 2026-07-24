@@ -743,7 +743,7 @@ function Step2TrackingUpload({
                 className="mt-0.5 shrink-0 text-warning-dark"
               />
               <p className="text-xs text-warning-dark">
-                {totalUnmatched}건의 주문번호가 일치하지 않습니다. 주문 엑셀을
+                {totalUnmatched}건의 매칭번호가 일치하지 않습니다. 주문 엑셀을
                 확인해 주세요.
               </p>
             </div>
@@ -1112,7 +1112,7 @@ function MatchedTrackingTable({
               {showSupplierColumn && <TableHead>공급처</TableHead>}
               <TableHead>상태</TableHead>
               <TableHead>플랫폼</TableHead>
-              <TableHead>주문번호</TableHead>
+              <TableHead>매칭번호</TableHead>
               <TableHead>상품명</TableHead>
               <TableHead>택배사</TableHead>
               <TableHead>운송장번호</TableHead>
@@ -1192,7 +1192,7 @@ function TrackingFileDetail({ trackingFile: tf }: { trackingFile: SimpleTracking
           <TableHeader>
             <TableRow>
               <TableHead className="w-10">#</TableHead>
-              <TableHead>주문번호</TableHead>
+              <TableHead>매칭번호</TableHead>
               <TableHead>상품명</TableHead>
               <TableHead>택배사</TableHead>
               <TableHead>운송장번호</TableHead>

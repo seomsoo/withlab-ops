@@ -51,7 +51,7 @@ import type {
 import type { SupplierFormData } from '@/lib/schemas'
 
 const SYSTEM_FIELDS: { value: SystemField; label: string; required: boolean }[] = [
-  { value: 'matchingKey', label: '매칭키 (주문번호)', required: true },
+  { value: 'matchingKey', label: '매칭키 (배송/상품번호)', required: true },
   { value: 'supplierProductName', label: '공급처 상품명', required: false },
   { value: 'platformProductName', label: '플랫폼 상품명 (쿠팡: 노출상품명, 토스: 상품명+옵션명)', required: false },
   { value: 'quantity', label: '수량', required: true },
@@ -99,7 +99,7 @@ type TrackingColumnHeader = {
 
 const TRACKING_COLUMN_ROLES: { value: TrackingColumnRole; label: string }[] = [
   { value: 'empty', label: '(미사용)' },
-  { value: 'orderKey', label: '주문번호 *' },
+  { value: 'orderKey', label: '매칭번호 *' },
   { value: 'trackingNumber', label: '운송장번호 *' },
   { value: 'courier', label: '택배사' },
   { value: 'productName', label: '상품명' },
@@ -612,7 +612,7 @@ export default function SupplierDetail() {
     const recipientCol = assignedRoles.find((h) => h.role === 'recipientName')
 
     if (!orderKeyCol) {
-      toast.error('필수 매핑 누락: 주문번호')
+      toast.error('필수 매핑 누락: 매칭번호')
       return
     }
     if (!trackingNumberCol) {
@@ -1560,7 +1560,7 @@ export default function SupplierDetail() {
                 </thead>
                 <tbody>
                   <tr className="border-t border-line/50">
-                    <td className="px-3 py-1.5 text-xs font-medium">주문번호</td>
+                    <td className="px-3 py-1.5 text-xs font-medium">매칭번호</td>
                     <td className="px-3 py-1.5 font-mono text-xs text-t-mute">
                       {colIndexToLetter(trackingTemplate.orderKeyColumn + 1)}열
                     </td>
@@ -1696,7 +1696,7 @@ export default function SupplierDetail() {
                 <h3 className="mb-2 text-sm font-semibold text-t-strong">
                   컬럼 매핑
                   <span className="ml-2 text-xs font-normal text-t-faint">
-                    (주문번호, 운송장번호 필수)
+                    (매칭번호, 운송장번호 필수)
                   </span>
                 </h3>
                 <div className="max-h-[400px] overflow-auto rounded-md border border-line">

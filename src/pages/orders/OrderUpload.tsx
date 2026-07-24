@@ -849,7 +849,7 @@ function OrdersTable({ orders }: { orders: StandardOrder[] }) {
       <thead>
         <tr className="border-t border-line bg-gray-50 text-left text-xs font-semibold tracking-wide text-t-mute">
           <th className="px-6 py-3">플랫폼</th>
-          <th className="whitespace-nowrap px-4 py-3">주문번호</th>
+          <th className="whitespace-nowrap px-4 py-3">매칭번호</th>
           <th className="px-4 py-3">상품명</th>
           <th className="px-4 py-3">옵션</th>
           <th className="px-4 py-3 text-center">수량</th>

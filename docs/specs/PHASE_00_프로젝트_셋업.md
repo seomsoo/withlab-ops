@@ -421,7 +421,7 @@ dist/
 - [ ] **주문 테이블 1 row = 주문 라인** 의미 명시 (현재 테이블명은 `orders` 유지)
 - [ ] 주문 라인 중복 방지: `unique(work_session_id, platform, matching_key)` 제약 존재
 - [ ] 주문 라인 중복 배정 방지: `unique(order_id)` on `allocations` 제약 존재
-- [ ] 매칭키 규칙 문서화: 쿠팡=주문번호, 토스=주문상품번호
+- [ ] 매칭키 규칙 문서화: 쿠팡=묶음배송번호, 토스=주문상품번호
 
 ### Supabase Storage
 - [ ] Storage 버킷 `templates` 생성 완료 (Private)

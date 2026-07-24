@@ -31,7 +31,7 @@
 
 > `orders` 테이블의 **1 row = 주문 라인 1개**를 의미한다. 플랫폼 주문 1건이 아니다.
 >
-> - 쿠팡: 상품마다 주문번호가 따로 발급 → 1 row = 1 주문번호
+> - 쿠팡: 한 주문번호에 여러 배송 묶음 가능 → 묶음배송번호로 행 구분
 > - 토스: 1주문에 여러 상품 가능 → 주문번호 동일 + 주문상품번호 다름 = **서로 다른 주문 라인**
 >
 > DB unique 제약: `unique(work_session_id, platform, matching_key)`
@@ -242,7 +242,7 @@ idx 30: 배송메세지     → deliveryMessage
 
 **핵심 규칙**:
 1. `platform`은 고정값 `"coupang"`
-2. 쿠팡은 `orderNo = orderItemNo = matchingKey` (모두 주문번호)
+2. 쿠팡은 `orderNo = 주문번호`, `orderItemNo = matchingKey = 묶음배송번호`
 3. `quantity`: `cellToInt()` 사용 → `null`이면 invalidRow, 0 이하면 invalidRow
 4. 빈 행 판정: `orderNo`와 `productName` 모두 빈 문자열 → 스킵 (invalidRow 아님, `meta.skippedRows`에만 카운트)
 5. `orderNo` 또는 `productName` 둘 중 하나만 비어있으면 → invalidRow (사유: "주문번호 또는 상품명 누락")
@@ -357,7 +357,7 @@ describe('parseCoupangOrders', () => {
   // 정상 케이스
   it('정상: 기본 주문 1건 파싱', () => { ... })
   it('정상: 여러 건 파싱', () => { ... })
-  it('정상: matchingKey === orderNo === orderItemNo', () => { ... })
+  it('정상: matchingKey와 orderItemNo는 묶음배송번호', () => { ... })
 
   // 필드 검증
   it('정상: 전화번호 원본 보존 + digits 추출', () => { ... })

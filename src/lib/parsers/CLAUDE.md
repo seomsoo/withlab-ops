@@ -17,8 +17,9 @@
 4. 수량: parseInt 후 NaN이거나 0 이하면 invalidRow.
 5. displayProductName: 발주서 품목명용. 쿠팡=노출상품명(옵션명)[col12], 토스=상품명+옵션명 합침.
 6. 전화번호: 원본은 그대로 보존, digits는 숫자만 추출.
-6. rawValues에 셀 배열 저장 (운송장 출력 시 원본 복원용).
-7. rawRowNumber에 엑셀 행 번호 저장 (에러 표시용).
+7. 쿠팡 matchingKey/orderItemNo: 묶음배송번호 (한 주문번호에 여러 배송 묶음 가능).
+8. rawValues에 셀 배열 저장 (운송장 출력 시 원본 복원용).
+9. rawRowNumber에 엑셀 행 번호 저장 (에러 표시용).
 
 ## 플랫폼 감지 로직
 - Delivery 우선, 없으면 전체 시트 1~10행에 `번호`, `묶음배송번호`, `주문번호` → 쿠팡
