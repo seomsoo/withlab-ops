@@ -18,3 +18,9 @@ supabase/.temp/
 # Sample data (개인정보 포함)
 docs/sample/
 CS/
+
+# DB 백업 덤프 (수령인 이름·전화번호 등 개인정보 포함)
+# 백업은 저장소 밖에 보관할 것 — 예: ~/Desktop/withlab-backup/
+# 단, supabase/schema_snapshot_*.sql 은 스키마만 담고 있어 커밋 대상이다.
+backup_*.sql
+data_*.sql
