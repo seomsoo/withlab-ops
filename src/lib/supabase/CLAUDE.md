@@ -10,6 +10,7 @@ Supabase 클라이언트 생성 + 모든 DB/Storage 호출을 함수로 추상�
 - `storage.ts` — Supabase Storage 파일 업로드/다운로드
 
 ## DB 호출 패턴
+- 기존 주문에 추가는 `orders.ts`의 `appendOrdersToImport`만 사용. RPC 실패 시 기존 주문을 삭제하거나 개별 INSERT로 우회하지 않는다. RPC 마이그레이션을 프론트엔드보다 먼저 배포한다.
 ```ts
 // 항상 이 패턴: query → error 체크 → snake_case→camelCase 변환
 export async function getSuppliers(): Promise<Supplier[]> {

@@ -7,6 +7,7 @@ import {
   cellToDateString,
 } from '@/utils/excel'
 import { extractDigits } from '@/utils/phone'
+import { buildCoupangOrderKey } from '@/utils/orderKey'
 
 import type {
   StandardOrder,
@@ -20,6 +21,7 @@ const SHEET_NAME = 'Delivery'
 const REQUIRED_HEADERS = {
   shipmentBoxId: '묶음배송번호',
   orderNo: '주문번호',
+  optionId: '옵션ID',
   orderDate: '주문일',
   productName: '등록상품명',
   optionName: '등록옵션명',
@@ -151,6 +153,16 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
       continue
     }
 
+    const optionId = cellToString(row[col.optionId])
+    if (optionId === '') {
+      invalidRows.push({
+        rowNumber: excelRowNumber,
+        reason: '옵션ID 누락',
+        rawData: normalized,
+      })
+      continue
+    }
+
     const recipientName = cellToString(row[col.recipientName])
     if (recipientName === '') {
       invalidRows.push({
@@ -202,13 +214,14 @@ export function parseCoupangOrders(workbook: WorkBook): ParseResult {
     }
 
     const buyerPhone = cellToString(row[col.buyerPhone])
+    const matchingKey = buildCoupangOrderKey(shipmentBoxId, optionId)
 
     orders.push({
       id: crypto.randomUUID(),
       platform: 'coupang',
       orderNo,
-      orderItemNo: shipmentBoxId,
-      matchingKey: shipmentBoxId,
+      orderItemNo: matchingKey,
+      matchingKey,
       orderDate: cellToDateString(row[col.orderDate]),
       productName,
       optionName: cellToString(row[col.optionName]),

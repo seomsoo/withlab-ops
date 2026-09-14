@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import ExcelJS from 'exceljs'
+import * as XLSX from 'xlsx'
 import { generatePurchaseOrderExcel } from './purchaseOrderGenerator'
+import { parseTracking } from '@/lib/parsers/trackingParser'
 import type { StandardPurchaseOrder, SupplierTemplate, PurchaseOrderItem } from '@/types'
 
 function makeItem(overrides: Partial<PurchaseOrderItem> = {}): PurchaseOrderItem {
@@ -98,6 +100,36 @@ async function readResultWorkbook(blob: Blob): Promise<ExcelJS.Workbook> {
 }
 
 describe('generatePurchaseOrderExcel', () => {
+  it('쿠팡 상품별 키를 발주서에 문자열로 보존하고 운송장에서도 다시 읽는다', async () => {
+    const keys = ['700000000000001:95000000001', '700000000000001:95000000002']
+    const result = await generatePurchaseOrderExcel({
+      id: 'po-1', supplierId: 'sup-A', supplierName: 'A업체', createdAt: '2026-09-14',
+      items: keys.map((key, index) => makeItem({
+        allocationId: `alloc-${index}`, orderId: `order-${index}`,
+        matchingKey: key, orderItemNo: key,
+      })),
+    }, makeTemplate(), await createTemplateBlob())
+    const wb = await readResultWorkbook(result)
+    const sheet = wb.getWorksheet('Sheet1')!
+    for (const [index, key] of keys.entries()) {
+      expect(sheet.getCell(index + 2, 1).value).toBe(key)
+      expect(sheet.getCell(index + 2, 1).type).toBe(ExcelJS.ValueType.String)
+    }
+
+    // 공급처가 매칭번호를 유지한 채 택배사와 송장번호를 채워 반환하는 경로.
+    sheet.getCell(1, 1).value = '업체주문번호'
+    sheet.getCell(1, 7).value = '택배사'
+    sheet.getCell(1, 8).value = '운송장번호'
+    for (let i = 0; i < keys.length; i++) {
+      sheet.getCell(i + 2, 7).value = 'CJ대한통운'
+      sheet.getCell(i + 2, 8).value = `TRACK-${i}`
+    }
+    const returned = XLSX.read(await wb.xlsx.writeBuffer(), { type: 'buffer' })
+    const parsed = parseTracking(returned)
+    expect(parsed.trackings.map((item) => item.rawOrderKey)).toEqual(keys)
+    expect(parsed.invalidRows).toHaveLength(0)
+  })
+
   it('1. 템플릿 로드: 전달받은 템플릿을 로드하고 새 워크북을 만들지 않는다', async () => {
     const templateBlob = await createTemplateBlob()
     const po: StandardPurchaseOrder = {

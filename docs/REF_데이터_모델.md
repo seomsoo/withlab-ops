@@ -11,8 +11,8 @@ type StandardOrder = {
   id: string                   // uuid
   platform: "coupang" | "toss"
   orderNo: string              // 플랫폼 주문번호
-  orderItemNo: string          // 쿠팡: 묶음배송번호 / 토스: 주문상품번호
-  matchingKey: string          // 운송장 매칭 기준 — 쿠팡: 묶음배송번호 / 토스: 주문상품번호
+  orderItemNo: string          // 쿠팡: 묶음배송번호:옵션ID / 토스: 주문상품번호
+  matchingKey: string          // 운송장 매칭 기준 — 쿠팡: 묶음배송번호:옵션ID / 토스: 주문상품번호
   orderDate: string
 
   productName: string          // 등록상품명(쿠팡) / 상품명(토스)
@@ -40,7 +40,7 @@ type StandardOrder = {
 ### ⚠️ matchingKey 규칙 (가장 중요)
 | 플랫폼 | matchingKey 출처 | 이유 |
 |--------|-----------------|------|
-| 쿠팡 | `묶음배송번호` | 한 주문번호에 여러 배송 묶음이 존재할 수 있음 |
+| 쿠팡 | `묶음배송번호:옵션ID` | 한 배송 묶음에 여러 상품이 존재할 수 있음 |
 | 토스 | `주문상품번호` | 토스는 1주문에 여러 상품 → 주문번호만으로는 구분 불가 |
 
 ---

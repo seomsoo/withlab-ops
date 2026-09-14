@@ -1,3 +1,5 @@
+import { buildOrderIndex } from './orderIndex'
+
 import type {
   ParsedTracking,
   StandardOrder,
@@ -28,27 +30,7 @@ export type DirectMatchingInput = {
 export function runDirectMatching(input: DirectMatchingInput): DirectMatchingResult {
   const { parsedTrackings, orders, alreadyMatchedOrderIds } = input
 
-  const ordersByMatchingKey = new Map<string, StandardOrder[]>()
-  const ordersByOrderNo = new Map<string, StandardOrder[]>()
-  for (const order of orders) {
-    const key = order.matchingKey.trim()
-    const existing = ordersByMatchingKey.get(key)
-    if (existing) {
-      existing.push(order)
-    } else {
-      ordersByMatchingKey.set(key, [order])
-    }
-
-    const oNo = order.orderNo.trim()
-    if (oNo && oNo !== key) {
-      const existingByNo = ordersByOrderNo.get(oNo)
-      if (existingByNo) {
-        existingByNo.push(order)
-      } else {
-        ordersByOrderNo.set(oNo, [order])
-      }
-    }
-  }
+  const { exact: ordersByMatchingKey, fallback: ordersByOrderNo } = buildOrderIndex(orders)
 
   const matchedOrderIds = new Set<string>(alreadyMatchedOrderIds)
 

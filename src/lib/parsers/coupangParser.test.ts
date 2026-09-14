@@ -75,7 +75,7 @@ function makeRow(overrides: Partial<Record<string, unknown>> = {}): unknown[] {
     등록옵션명: '가정용 혼합과 5KG',
     '노출상품명(옵션명)': '',
     노출상품ID: '',
-    옵션ID: '',
+    옵션ID: 'OPTION-1',
     '최초등록등록상품명/옵션명': '',
     업체상품코드: '',
     바코드: '',
@@ -150,6 +150,76 @@ function makeRow(overrides: Partial<Record<string, unknown>> = {}): unknown[] {
 }
 
 describe('parseCoupangOrders', () => {
+  it('동일 옵션의 수량 2는 한 주문 라인의 수량으로 보존한다', () => {
+    const result = parseCoupangOrders(makeCoupangWorkbook([makeRow({ '구매수(수량)': 2 })]))
+    expect(result.orders).toHaveLength(1)
+    expect(result.orders[0]!.quantity).toBe(2)
+  })
+
+  it('같은 상품이 다른 배송 묶음에 있으면 둘 다 보존한다', () => {
+    const result = parseCoupangOrders(makeCoupangWorkbook([
+      makeRow({ 묶음배송번호: 'BOX-1' }),
+      makeRow({ 묶음배송번호: 'BOX-2' }),
+    ]))
+    expect(result.orders).toHaveLength(2)
+    expect(result.duplicateRows).toHaveLength(0)
+  })
+
+  it('숫자 셀과 문자열 셀로 표현된 같은 ID는 중복으로 인식한다', () => {
+    const result = parseCoupangOrders(makeCoupangWorkbook([
+      makeRow({ 묶음배송번호: 700000000000001, 옵션ID: 95000000001 }),
+      makeRow({ 묶음배송번호: ' 700000000000001 ', 옵션ID: '95000000001' }),
+    ]))
+    expect(result.orders).toHaveLength(1)
+    expect(result.duplicateRows).toHaveLength(1)
+  })
+
+  it('파일 순서나 다른 상품의 존재 여부에 따라 상품 키가 바뀌지 않는다', () => {
+    const apple = makeRow({ 옵션ID: 'APPLE' })
+    const peach = makeRow({ 옵션ID: 'PEACH' })
+    const full = parseCoupangOrders(makeCoupangWorkbook([apple, peach]))
+    const reversed = parseCoupangOrders(makeCoupangWorkbook([peach, apple]))
+    const partial = parseCoupangOrders(makeCoupangWorkbook([peach]))
+    expect(full.orders[1]!.matchingKey).toBe(reversed.orders[0]!.matchingKey)
+    expect(full.orders[1]!.matchingKey).toBe(partial.orders[0]!.matchingKey)
+  })
+
+  it('옵션ID가 없으면 상품을 추측하거나 중복 처리하지 않고 오류로 표시한다', () => {
+    const result = parseCoupangOrders(makeCoupangWorkbook([makeRow({ 옵션ID: '' })]))
+    expect(result.orders).toHaveLength(0)
+    expect(result.invalidRows[0]!.reason).toBe('옵션ID 누락')
+  })
+
+  it('상품명과 옵션명이 같아도 옵션ID가 다르면 별개 상품이다', () => {
+    const result = parseCoupangOrders(makeCoupangWorkbook([
+      makeRow({ 옵션ID: 'OPTION-1' }),
+      makeRow({ 옵션ID: 'OPTION-2' }),
+    ]))
+    expect(result.orders).toHaveLength(2)
+    expect(result.duplicateRows).toHaveLength(0)
+  })
+
+  it('같은 묶음과 옵션은 상품명이 바뀌어도 중복으로 처리한다', () => {
+    const result = parseCoupangOrders(makeCoupangWorkbook([
+      makeRow(),
+      makeRow({ 등록상품명: '변경된 상품명' }),
+    ]))
+    expect(result.orders).toHaveLength(1)
+    expect(result.duplicateRows).toHaveLength(1)
+  })
+
+  it('같은 배송 묶음의 서로 다른 상품을 누락하지 않는다', () => {
+    const result = parseCoupangOrders(makeCoupangWorkbook([
+      makeRow({ 묶음배송번호: 'BOX-1', 주문번호: 'ORDER-1', 등록상품명: '사과', 옵션ID: 'OPTION-1' }),
+      makeRow({ 묶음배송번호: 'BOX-1', 주문번호: 'ORDER-1', 등록상품명: '복숭아', 옵션ID: 'OPTION-2' }),
+    ]))
+
+    expect(result.orders).toHaveLength(2)
+    expect(result.duplicateRows).toHaveLength(0)
+    expect(new Set(result.orders.map((order) => order.matchingKey)).size).toBe(2)
+    expect(result.orders.map((order) => order.rawRowNumber)).toEqual([2, 3])
+  })
+
   it('정상: 기본 주문 1건 파싱', () => {
     const wb = makeCoupangWorkbook([makeRow()])
     const result = parseCoupangOrders(wb)
@@ -178,7 +248,7 @@ describe('parseCoupangOrders', () => {
     expect(result.meta.validRows).toBe(3)
   })
 
-  it('정상: matchingKey와 orderItemNo는 묶음배송번호, orderNo는 주문번호', () => {
+  it('정상: matchingKey와 orderItemNo는 묶음배송번호 + 옵션ID, orderNo는 주문번호', () => {
     const wb = makeCoupangWorkbook([
       makeRow({
         묶음배송번호: 'SHIP-123',
@@ -187,9 +257,9 @@ describe('parseCoupangOrders', () => {
     ])
     const result = parseCoupangOrders(wb)
     const order = result.orders[0]!
-    expect(order.matchingKey).toBe('SHIP-123')
+    expect(order.matchingKey).toBe('SHIP-123:OPTION-1')
     expect(order.orderNo).toBe('ORDER-123')
-    expect(order.orderItemNo).toBe('SHIP-123')
+    expect(order.orderItemNo).toBe('SHIP-123:OPTION-1')
   })
 
   it('정상: 주문번호가 같아도 묶음배송번호가 다른 상품은 각각 파싱', () => {
@@ -212,8 +282,8 @@ describe('parseCoupangOrders', () => {
     expect(result.orders).toHaveLength(2)
     expect(result.duplicateRows).toHaveLength(0)
     expect(result.orders.map((order) => order.matchingKey)).toEqual([
-      '712620105383994',
-      '712620109578258',
+      '712620105383994:OPTION-1',
+      '712620109578258:OPTION-1',
     ])
   })
 
@@ -387,7 +457,7 @@ describe('parseCoupangOrders', () => {
     const result = parseCoupangOrders(wb)
     expect(result.orders).toHaveLength(1)
     expect(result.duplicateRows).toHaveLength(1)
-    expect(result.duplicateRows[0]!.matchingKey).toBe('DUP-SHIP')
+    expect(result.duplicateRows[0]!.matchingKey).toBe('DUP-SHIP:OPTION-1')
     expect(result.duplicateRows[0]!.firstRowNumber).toBe(2)
     expect(result.duplicateRows[0]!.rowNumber).toBe(3)
   })

@@ -55,6 +55,7 @@ export default function OrderUpload() {
   const upload = useOrderUpload(sessionId ?? '')
 
   const [pendingPlan, setPendingPlan] = useState<UploadPlan | null>(null)
+  const [appendImportId, setAppendImportId] = useState('')
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [uploading, setUploading] = useState<Platform | null>(null)
   const [errorModalOpen, setErrorModalOpen] = useState(false)
@@ -73,6 +74,7 @@ export default function OrderUpload() {
           : await upload.prepareUploadAutoDetect(file)
         if (plan.existingImports.length > 0) {
           setPendingPlan(plan)
+          setAppendImportId(plan.existingImports.length === 1 ? plan.existingImports[0]!.id : '')
           setConfirmOpen(true)
         } else {
           await upload.commitUpload(plan)
@@ -93,7 +95,7 @@ export default function OrderUpload() {
     try {
       setUploading(pendingPlan.platform)
       if (mode === 'append') {
-        await upload.commitUpload(pendingPlan, { appendExisting: true })
+        await upload.commitUpload(pendingPlan, { appendExisting: true, appendImportId })
       } else if (mode === 'separate') {
         await upload.commitUpload(pendingPlan, { addSeparate: true })
       } else {
@@ -106,7 +108,7 @@ export default function OrderUpload() {
       setPendingPlan(null)
       setConfirmOpen(false)
     }
-  }, [pendingPlan, upload])
+  }, [pendingPlan, upload, appendImportId])
 
   const filteredOrders = useMemo(() => {
     let filtered = upload.orders
@@ -414,9 +416,25 @@ export default function OrderUpload() {
             </p>
           </DialogHeader>
           <div className="flex flex-col gap-3 py-2">
+            {pendingPlan && pendingPlan.existingImports.length > 1 && (
+              <label className="flex flex-col gap-2 text-sm text-t-strong">
+                주문을 추가할 기존 파일
+                <select
+                  className="rounded-lg border border-line bg-card px-3 py-2"
+                  value={appendImportId}
+                  onChange={(event) => setAppendImportId(event.target.value)}
+                  disabled={uploading !== null}
+                >
+                  <option value="">기존 파일을 선택해주세요</option>
+                  {pendingPlan.existingImports.map((item) => (
+                    <option key={item.id} value={item.id}>{item.label} · {item.fileName}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button
               className="flex items-start gap-4 rounded-xl border-2 border-primary/30 bg-primary/[0.03] px-5 py-4 text-left transition-colors hover:border-primary hover:bg-primary/[0.06] disabled:opacity-50"
-              disabled={uploading !== null}
+              disabled={uploading !== null || !appendImportId}
               onClick={() => handleConfirmAction('append')}
             >
               <div className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10">
@@ -424,7 +442,7 @@ export default function OrderUpload() {
               </div>
               <div>
                 <div className="text-sm font-bold text-t-strong">
-                  합치기
+                  기존 주문에 추가
                   {uploading !== null && pendingPlan && (
                     <span className="ml-2 inline-flex items-center text-xs font-medium text-primary">
                       처리 중...
@@ -432,7 +450,7 @@ export default function OrderUpload() {
                   )}
                 </div>
                 <div className="mt-0.5 text-xs text-t-mid leading-relaxed">
-                  기존 주문은 유지하고, 새 파일의 주문을 추가해요.
+                  기존 주문·공급처 배정·운송장을 유지하고, 새 주문만 추가해요.
                   <br />
                   <span className="text-t-faint">중복 주문은 자동으로 걸러져요.</span>
                 </div>

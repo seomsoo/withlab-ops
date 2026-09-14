@@ -3,11 +3,13 @@ import { toast } from 'sonner'
 
 import { readExcelFile } from '@/utils/excel'
 import { validateExcelFile } from '@/utils/file'
+import { getOrderDeduplicationKey } from '@/utils/orderKey'
 import { detectPlatform } from '@/lib/parsers/platformDetector'
 import { parseCoupangOrders } from '@/lib/parsers/coupangParser'
 import { parseTossOrders } from '@/lib/parsers/tossParser'
 import {
   createOrderImport,
+  appendOrdersToImport,
   saveOrders,
   getOrders,
   getOrderImports,
@@ -15,7 +17,7 @@ import {
   updateOrderImportLabel,
 } from '@/lib/supabase/orders'
 
-import type { StandardOrder, OrderImport, ParseResult, Platform, DuplicateRow } from '@/types'
+import type { StandardOrder, OrderImport, ParseResult, Platform } from '@/types'
 
 export type UploadPlan = {
   file: File
@@ -214,6 +216,7 @@ export function useOrderUpload(workSessionId: string) {
       options?: {
         replaceExisting?: boolean
         appendExisting?: boolean
+        appendImportId?: string
         addSeparate?: boolean
         separateLabel?: string
       }
@@ -222,6 +225,19 @@ export function useOrderUpload(workSessionId: string) {
         const firstExisting = plan.existingImports[0]
 
         if (options?.addSeparate) {
+          // 이전 묶음번호 키와 새 상품별 키는 DB unique만으로 중복을 막을 수 없다.
+          const existingOrders = await getOrders(workSessionId)
+          const existingKeys = new Set(
+            existingOrders
+              .filter((order) => order.platform === plan.platform)
+              .map(getOrderDeduplicationKey)
+          )
+          if (plan.parseResult.orders.some((order) =>
+            existingKeys.has(getOrderDeduplicationKey(order))
+          )) {
+            throw new Error('이미 동일한 주문이 존재합니다. 별도 파일에 기존 주문이 중복 포함되어 있는지 확인해주세요.')
+          }
+
           const existingLabels = plan.existingImports.map((i) => i.label)
           const newLabel =
             options.separateLabel ??
@@ -256,76 +272,32 @@ export function useOrderUpload(workSessionId: string) {
           return
         }
 
-        if (firstExisting && (options?.replaceExisting || options?.appendExisting)) {
-          const existingOrders = options.appendExisting
-            ? (await getOrders(workSessionId)).filter(
-                (o) => o.platform === plan.platform
-              )
-            : []
-
-          for (const ei of plan.existingImports) {
-            await deleteOrderImport(ei.id)
+        if (options?.appendExisting) {
+          const targetImport = options.appendImportId
+            ? plan.existingImports.find((item) => item.id === options.appendImportId)
+            : plan.existingImports.length === 1 ? firstExisting : undefined
+          if (!targetImport) {
+            throw new Error('주문을 추가할 기존 파일을 선택해주세요')
           }
+          const result = await appendOrdersToImport({
+            workSessionId,
+            orderImportId: targetImport.id,
+            platform: plan.platform,
+            fileName: plan.file.name,
+            orders: plan.parseResult.orders,
+            invalidRows: plan.parseResult.invalidRows,
+            duplicateRows: plan.parseResult.duplicateRows,
+          })
+          await refreshFromDb()
+          toast.success(
+            `주문 ${result.insertedCount}건 추가 · 중복 ${result.duplicateCount}건 제외 (총 ${result.totalCount}건)`
+          )
+          return
+        }
 
-          if (options.appendExisting && existingOrders.length > 0) {
-            const existingKeys = new Set(
-              existingOrders.map((o) => o.matchingKey)
-            )
-            const newUnique: StandardOrder[] = []
-            const newDuplicates: DuplicateRow[] = [
-              ...plan.parseResult.duplicateRows,
-            ]
-
-            for (const order of plan.parseResult.orders) {
-              if (existingKeys.has(order.matchingKey)) {
-                newDuplicates.push({
-                  rowNumber: order.rawRowNumber,
-                  reason: '기존 파일과 중복',
-                  matchingKey: order.matchingKey,
-                  firstRowNumber: 0,
-                  rawData: order.rawValues,
-                })
-              } else {
-                newUnique.push(order)
-                existingKeys.add(order.matchingKey)
-              }
-            }
-
-            const mergedOrders = [...existingOrders, ...newUnique]
-            const mergedInvalid = plan.parseResult.invalidRows
-            const totalRows =
-              firstExisting.totalRows + plan.parseResult.meta.totalRows
-            const dupCount = newDuplicates.length
-
-            const imp = await createOrderImport({
-              workSessionId,
-              platform: plan.platform,
-              fileName: `${firstExisting.fileName} + ${plan.file.name}`,
-              label: firstExisting.label,
-              totalRows,
-              validCount: mergedOrders.length,
-              invalidCount:
-                firstExisting.invalidCount +
-                plan.parseResult.meta.invalidRows,
-              duplicateCount: dupCount,
-              invalidRows: mergedInvalid,
-              duplicateRows: newDuplicates,
-            })
-
-            try {
-              await saveOrders(workSessionId, imp.id, mergedOrders)
-            } catch (saveErr) {
-              await deleteOrderImport(imp.id)
-              throw saveErr
-            }
-
-            await refreshFromDb()
-
-            const label = plan.platform === 'coupang' ? '쿠팡' : '토스'
-            toast.success(
-              `${label} 주문 ${newUnique.length}건 추가 (총 ${mergedOrders.length}건)`
-            )
-            return
+        if (firstExisting && options?.replaceExisting) {
+          for (const existingImport of plan.existingImports) {
+            await deleteOrderImport(existingImport.id)
           }
         }
 
