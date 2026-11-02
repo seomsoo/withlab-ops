@@ -90,6 +90,7 @@ export function parseTracking(workbook: WorkBook): TrackingParseResult {
   const trackings: ParsedTracking[] = []
   const invalidRows: InvalidRow[] = []
   let skippedRows = 0
+  let orphanTrackingRows = 0
   const courierCounts = new Map<string, number>()
 
   const dataRows = allRows.slice(1)
@@ -105,6 +106,7 @@ export function parseTracking(workbook: WorkBook): TrackingParseResult {
     // 빈 행 또는 수량분할 연속행(주문번호 없이 운송장번호만 있는 행) — 매칭 불가이므로 스킵
     if (rawOrderKey === '') {
       skippedRows++
+      if (trackingNumber !== '') orphanTrackingRows++
       continue
     }
 
@@ -152,6 +154,7 @@ export function parseTracking(workbook: WorkBook): TrackingParseResult {
       validCount: trackings.length,
       invalidCount: invalidRows.length,
       skippedRows,
+      orphanTrackingRows,
       detectedCourier,
     },
   }
@@ -180,13 +183,14 @@ export function parseTrackingWithTemplate(
     return {
       trackings: [],
       invalidRows: [],
-      meta: { totalRows: 0, validCount: 0, invalidCount: 0, skippedRows: 0, detectedCourier: null },
+      meta: { totalRows: 0, validCount: 0, invalidCount: 0, skippedRows: 0, orphanTrackingRows: 0, detectedCourier: null },
     }
   }
 
   const trackings: ParsedTracking[] = []
   const invalidRows: InvalidRow[] = []
   let skippedRows = 0
+  let orphanTrackingRows = 0
   const courierCounts = new Map<string, number>()
 
   const dataRows = allRows.slice(dataStartIndex)
@@ -206,6 +210,7 @@ export function parseTrackingWithTemplate(
     // 빈 행 또는 수량분할 연속행(주문번호 없이 운송장번호만 있는 행) — 매칭 불가이므로 스킵
     if (rawOrderKey === '') {
       skippedRows++
+      if (trackingNumber !== '') orphanTrackingRows++
       continue
     }
 
@@ -259,6 +264,7 @@ export function parseTrackingWithTemplate(
       validCount: trackings.length,
       invalidCount: invalidRows.length,
       skippedRows,
+      orphanTrackingRows,
       detectedCourier,
     },
   }
