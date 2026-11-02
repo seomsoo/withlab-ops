@@ -298,6 +298,12 @@ export default function SupplierAllocation() {
     return result
   }, [groups, filter, supplierFilter])
 
+  // 다른 공급처의 미확인 품목이 공급처 필터에 가려지지 않도록 필터도 함께 푼다.
+  const openMissingPriceReview = useCallback(() => {
+    setFilter('noPrice')
+    setSupplierFilter('all')
+  }, [])
+
   const toggleGroup = useCallback((key: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev)
@@ -495,7 +501,7 @@ export default function SupplierAllocation() {
               </div>
               <button
                 className="ml-auto text-xs font-medium text-primary hover:underline"
-                onClick={() => setFilter('noPrice')}
+                onClick={openMissingPriceReview}
               >
                 가격 미확인만 보기
               </button>
@@ -738,7 +744,7 @@ export default function SupplierAllocation() {
             </Button>
             <Button
               onClick={() => {
-                setFilter('noPrice')
+                openMissingPriceReview()
                 setMissingPriceConfirmOpen(false)
               }}
             >
