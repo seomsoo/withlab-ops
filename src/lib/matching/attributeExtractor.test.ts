@@ -168,4 +168,90 @@ describe('extractAttributes', () => {
     expect(result.weight).toBeNull()
     expect(result.grade).toBe('가정용')
   })
+
+  describe('겹치는 키워드와 과일별 속성', () => {
+    const makeEntry = (
+      category: string,
+      keywords: string[],
+      sizeSynonyms: FruitDictionary['sizeSynonyms'] = [],
+      weightMapping: FruitDictionary['weightMapping'] = {}
+    ): FruitDictionary => ({
+      id: category,
+      category,
+      keywords,
+      gradeSynonyms: [],
+      sizeSynonyms,
+      weightAliases: { kg: ['키로', 'KG', '킬로'] },
+      weightMapping,
+      isActive: true,
+      createdAt: '',
+      updatedAt: '',
+    })
+
+    const GAM_DICT = [
+      makeEntry('감', ['감', '햇감', '단감']),
+      makeEntry(
+        '감귤',
+        ['감귤', '귤'],
+        [
+          { canonical: '대과', aliases: ['중대', '혼합'] },
+          { canonical: '로얄과', aliases: ['로얄', '꼬마'] },
+        ],
+        { '2kg': '3kg' }
+      ),
+      makeEntry('대봉감', ['대봉감']),
+      makeEntry('사과', ['사과', '감홍'], [
+        { canonical: '소과', aliases: ['꼬마'] },
+      ]),
+    ]
+
+    it.each([
+      ['제주 감귤', '감귤'],
+      ['제주 햇감귤', '감귤'],
+      ['대봉감 5kg', '대봉감'],
+      ['달콤한 단감', '감'],
+      ['문경 감홍사과', '사과'],
+    ])('%s → %s', (name, fruit) => {
+      expect(extractAttributes(name, '', GAM_DICT).fruit).toBe(fruit)
+    })
+
+    it('겹치지 않는 서로 다른 과일은 fruit null', () => {
+      expect(extractAttributes('감귤 사과 세트', '', GAM_DICT).fruit).toBeNull()
+    })
+
+    it('크기는 판정된 과일의 사전에서만 찾는다', () => {
+      const result = extractAttributes('제주 감귤', '1박스 꼬마', GAM_DICT)
+      expect(result.size).toBe('로얄과')
+    })
+
+    it('중량과 크기는 상품명보다 옵션을 우선한다', () => {
+      const result = extractAttributes(
+        '제주감귤5kg 로얄과',
+        '1개 3kg 중대',
+        GAM_DICT
+      )
+      expect(result.weight).toBe('3kg')
+      expect(result.size).toBe('대과')
+    })
+
+    it('옵션의 대괄호 안에 적힌 크기도 읽는다', () => {
+      const result = extractAttributes('제주 감귤', '1박스 5kg [로얄과]', GAM_DICT)
+      expect(result.size).toBe('로얄과')
+    })
+
+    it('크기 없는 감귤 주문은 대과로 본다', () => {
+      const order = extractAttributes('제주 감귤', '1박스 10kg', GAM_DICT, true)
+      expect(order.size).toBe('대과')
+    })
+
+    it('공급처 상품에는 기본 크기를 적용하지 않는다', () => {
+      const product = extractAttributes('제주 감귤 10kg', '', GAM_DICT)
+      expect(product.size).toBeNull()
+    })
+
+    it('주문 중량은 사전의 변환표를 적용한다', () => {
+      const order = extractAttributes('제주 감귤', '1박스 2kg', GAM_DICT, true)
+      expect(order.weight).toBe('3kg')
+    })
+  })
 })

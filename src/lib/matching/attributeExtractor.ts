@@ -10,22 +10,36 @@ export type ProductAttributes = {
   raw: string
 }
 
+/** 크기가 적히지 않은 주문에 적용할 과일별 기본 크기 */
+const DEFAULT_ORDER_SIZE: Record<string, string> = {
+  감귤: '대과',
+}
+
 export function extractAttributes(
   name: string,
   option: string,
   dictionary: FruitDictionary[],
-  applyWeightMapping = false
+  isPlatformOrder = false
 ): ProductAttributes {
   const combined = `${name} ${option}`
   const normalized = normalizeProductName(combined)
 
   const fruit = detectFruit(normalized, dictionary)
-  let weight = extractWeight(combined, dictionary)
-  const grade = detectGrade(normalized, dictionary)
-  const size = detectSize(normalized, dictionary)
+  const scoped = fruit
+    ? dictionary.filter((entry) => entry.category === fruit)
+    : dictionary
 
-  if (applyWeightMapping && fruit && weight) {
-    weight = mapWeight(fruit, weight, dictionary) ?? weight
+  // 상품명의 광고 문구보다 옵션이 실제 주문 내용에 가까우므로 옵션을 먼저 본다.
+  // normalize는 대괄호 안을 지우므로 "[S-M 로얄과]"를 살리려고 옵션 원문을 쓴다.
+  let weight =
+    extractWeight(option, dictionary) ?? extractWeight(combined, dictionary)
+  const grade = detectGrade(normalized, scoped)
+  let size =
+    detectSize(option.toLowerCase(), scoped) ?? detectSize(normalized, scoped)
+
+  if (isPlatformOrder && fruit) {
+    if (weight) weight = mapWeight(fruit, weight, dictionary) ?? weight
+    size ??= DEFAULT_ORDER_SIZE[fruit] ?? null
   }
 
   return { fruit, weight, grade, size, raw: normalized }
@@ -44,25 +58,70 @@ function mapWeight(
   return null
 }
 
-function detectFruit(
+type KeywordHit = {
+  category: string
+  start: number
+  end: number
+}
+
+function findKeywordHits(
   normalized: string,
   dictionary: FruitDictionary[]
-): string | null {
-  const matches: string[] = []
+): KeywordHit[] {
+  const hits: KeywordHit[] = []
 
   for (const entry of dictionary) {
     if (!entry.isActive) continue
     for (const keyword of entry.keywords) {
-      if (normalized.includes(keyword.toLowerCase())) {
-        matches.push(entry.category)
-        break
+      const term = keyword.toLowerCase()
+      if (!term) continue
+      let start = normalized.indexOf(term)
+      while (start !== -1) {
+        hits.push({
+          category: entry.category,
+          start,
+          end: start + term.length,
+        })
+        start = normalized.indexOf(term, start + 1)
       }
     }
   }
 
-  if (matches.length === 1) return matches[0]!
-  if (matches.length > 1) return null
-  return null
+  return hits
+}
+
+function outranks(a: KeywordHit, b: KeywordHit): boolean {
+  const aLength = a.end - a.start
+  const bLength = b.end - b.start
+  return aLength > bLength || (aLength === bLength && a.end > b.end)
+}
+
+/**
+ * 같은 글자에 겹친 키워드는 긴 쪽, 길이가 같으면 뒤쪽을 남긴다.
+ * 예: "햇감귤"은 햇감·감귤이 겹치므로 핵심어가 뒤에 오는 감귤로 판정한다.
+ */
+function detectFruit(
+  normalized: string,
+  dictionary: FruitDictionary[]
+): string | null {
+  const hits = findKeywordHits(normalized, dictionary)
+  const categories = new Set(
+    hits
+      .filter(
+        (hit) =>
+          !hits.some(
+            (other) =>
+              other.start < hit.end &&
+              hit.start < other.end &&
+              outranks(other, hit)
+          )
+      )
+      .map((hit) => hit.category)
+  )
+
+  if (categories.size !== 1) return null
+  const [fruit] = categories
+  return fruit ?? null
 }
 
 function extractWeight(
