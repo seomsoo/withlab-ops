@@ -17,6 +17,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 import { Button } from '@/components/ui/button'
 import { TrackingTabs } from '@/components/TrackingTabs'
 import { SupplierProgressChips } from '@/components/SupplierProgressChips'
+import { PriceSummaryTrackingPanel } from '@/components/PriceSummaryTrackingPanel'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
@@ -47,8 +48,13 @@ export default function TrackingDownload() {
   const navigate = useNavigate()
   const { session, loading: sessionLoading, refetch: refetchSession } =
     useWorkSession(sessionId!)
-  const { exportData, isLoading, courierWarnings, downloadPlatformFile } =
-    useTrackingExport(sessionId!)
+  const {
+    exportData,
+    isLoading,
+    courierWarnings,
+    downloadPlatformFile,
+    loadPastePreviews,
+  } = useTrackingExport(sessionId!)
 
   const [downloading, setDownloading] = useState<string | null>(null)
   const [completeOpen, setCompleteOpen] = useState(false)
@@ -285,6 +291,8 @@ export default function TrackingDownload() {
           />
         </div>
 
+        {/* 가격정리 붙여넣기 */}
+        <PriceSummaryTrackingPanel loadPreviews={loadPastePreviews} />
       </div>
 
       {/* 하단 CTA */}
