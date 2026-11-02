@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { autoAllocate } from './autoAllocator'
+import { autoAllocate, findSupplierProduct } from './autoAllocator'
 import type {
   StandardOrder,
   ProductMapping,
@@ -552,5 +552,19 @@ describe('autoAllocate — 스마트 배정', () => {
 
     expect(result.allocated).toHaveLength(1)
     expect(result.allocated[0]!.supplierId).toBe('sup-A')
+  })
+})
+
+
+describe('공급처 단가 상품 식별', () => {
+  it('같은 상품명에 여러 옵션이 있으면 임의 단가를 선택하지 않는다', () => {
+    expect(findSupplierProduct('sup-A', '참외 5kg', undefined, [makeSP(), makeSP({ id: 'sp-2', optionName: '특', price: 20000 })])).toBeNull()
+  })
+  it('상품코드가 유일하면 이름이 달라도 해당 상품을 선택한다', () => {
+    const product = makeSP({ productCode: 'A1' })
+    expect(findSupplierProduct('sup-A', '변경 전 이름', 'A1', [product])).toEqual(product)
+  })
+  it('동일 코드가 중복이면 단가를 추정하지 않는다', () => {
+    expect(findSupplierProduct('sup-A', '참외 5kg', 'A1', [makeSP({ productCode: 'A1' }), makeSP({ id: 'sp-2', productCode: 'A1' })])).toBeNull()
   })
 })

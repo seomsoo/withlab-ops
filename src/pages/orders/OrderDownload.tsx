@@ -1,3 +1,4 @@
+import { PriceSummaryPanel } from '@/components/PriceSummaryPanel'
 import { useState, useCallback, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -298,6 +299,8 @@ export default function OrderDownload() {
           )}
         </>
       )}
+
+      <PriceSummaryPanel key={sessionId} sessionId={sessionId} />
 
       {/* Complete Dialog */}
       {completeDialogOpen && validation && (

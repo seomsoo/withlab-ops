@@ -107,14 +107,14 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
           let spCode = nameResult.supplierProductCode
           let spPrice: number | undefined
 
-          if (!nameResult.applied && supplierProducts) {
+          if (supplierProducts) {
             let sp = findSupplierProduct(
               overrideSupplierId,
               nameResult.supplierProductName,
               nameResult.supplierProductCode,
               supplierProducts
             )
-            if (!sp && fruitDictionary && fruitDictionary.length > 0) {
+            if (!sp && !nameResult.applied && fruitDictionary && fruitDictionary.length > 0) {
               sp = findSupplierProductByAttributes(
                 order, overrideSupplierId, supplierProducts, fruitDictionary
               )
@@ -123,7 +123,7 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
               spName = sp.productName
               spCode = sp.productCode || undefined
               spPrice = sp.price ?? undefined
-            } else {
+            } else if (!nameResult.applied) {
               spName = order.displayProductName || spName
             }
           } else if (!nameResult.applied) {
@@ -365,7 +365,7 @@ function findProductMappingCandidatesNormalized(
   return sorted
 }
 
-function findSupplierProduct(
+export function findSupplierProduct(
   supplierId: string,
   supplierProductName: string,
   supplierProductCode: string | undefined,
@@ -376,16 +376,17 @@ function findSupplierProduct(
   )
 
   if (supplierProductCode) {
-    const byCode = forSupplier.find(
+    const byCode = forSupplier.filter(
       (sp) => sp.productCode === supplierProductCode
     )
-    if (byCode) return byCode
+    if (byCode.length === 1) return byCode[0]!
+    if (byCode.length > 1) return null
   }
 
-  const byName = forSupplier.find(
+  const byName = forSupplier.filter(
     (sp) => sp.productName === supplierProductName
   )
-  return byName ?? null
+  return byName.length === 1 ? byName[0]! : null
 }
 
 function selectBestSupplier(

@@ -14,7 +14,7 @@ import { getProductMappings, switchDefaultSupplier, createProductMappingsBulk } 
 import { getNameMappings } from '@/lib/supabase/nameMappings'
 import { getAllSuppliers } from '@/lib/supabase/suppliers'
 import { getAllSupplierProducts } from '@/lib/supabase/supplierProducts'
-import { autoAllocate, findNameMapping } from '@/lib/allocation/autoAllocator'
+import { autoAllocate, findNameMapping, findSupplierProduct } from '@/lib/allocation/autoAllocator'
 import { extractAttributes } from '@/lib/matching/attributeExtractor'
 import { getOrders } from '@/lib/supabase/orders'
 import { getFruitDictionaries } from '@/lib/supabase/fruitDictionary'
@@ -283,6 +283,10 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
         let resolvedProductName = nameResult.supplierProductName
         let resolvedProductCode = nameResult.supplierProductCode
         let resolvedPrice: number | undefined
+        if (nameResult.applied) {
+          const product = findSupplierProduct(newSupplierId, resolvedProductName, resolvedProductCode, await getAllSupplierProducts())
+          resolvedPrice = product?.price ?? undefined
+        }
         if (!nameResult.applied) {
           const resolved = await resolveSupplierProductName(
             platform, productName, optionName, newSupplierId
@@ -350,6 +354,10 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
           let resolvedProductName = nameResult.supplierProductName
           let resolvedProductCode = nameResult.supplierProductCode
           let resolvedPrice: number | undefined
+          if (nameResult.applied) {
+            const product = findSupplierProduct(supplierId, resolvedProductName, resolvedProductCode, await getAllSupplierProducts())
+            resolvedPrice = product?.price ?? undefined
+          }
           if (!nameResult.applied) {
             const resolved = await resolveSupplierProductName(
               order.platform, order.productName, order.optionName, supplierId
@@ -501,6 +509,10 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
           if (!nameCache.has(dist.supplierId)) {
             const nr = findNameMapping(platform, productName, optionName, dist.supplierId, nameMappingsAll)
             nameCache.set(dist.supplierId, nr)
+            if (nr.applied) {
+              const product = findSupplierProduct(dist.supplierId, nr.supplierProductName, nr.supplierProductCode, await getAllSupplierProducts())
+              if (product) resolvedCache.set(dist.supplierId, { productName: nr.supplierProductName, productCode: nr.supplierProductCode, price: product.price ?? undefined })
+            }
             if (!nr.applied) {
               const resolved = await resolveSupplierProductName(
                 platform, productName, optionName, dist.supplierId
