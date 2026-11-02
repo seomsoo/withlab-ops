@@ -48,6 +48,7 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
         const forSupplier = spAll.filter((sp) => sp.supplierId === supplierId)
         let bestSp: SupplierProduct | null = null
         let bestScore = 0
+        let tied = false
         for (const sp of forSupplier) {
           const spAttrs = extractAttributes(sp.productName, '', dictAll)
           if (!spAttrs.fruit || spAttrs.fruit !== attrs.fruit) continue
@@ -58,9 +59,12 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
           if (score > bestScore) {
             bestScore = score
             bestSp = sp
+            tied = false
+          } else if (score === bestScore) {
+            tied = true
           }
         }
-        return bestSp
+        return tied ? null : bestSp
       } catch {
         return null
       }

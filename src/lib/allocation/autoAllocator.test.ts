@@ -6,6 +6,7 @@ import type {
   NameMapping,
   Supplier,
   SupplierProduct,
+  FruitDictionary,
 } from '@/types'
 
 function makeOrder(overrides: Partial<StandardOrder> = {}): StandardOrder {
@@ -566,5 +567,56 @@ describe('공급처 단가 상품 식별', () => {
   })
   it('동일 코드가 중복이면 단가를 추정하지 않는다', () => {
     expect(findSupplierProduct('sup-A', '참외 5kg', 'A1', [makeSP({ productCode: 'A1' }), makeSP({ id: 'sp-2', productCode: 'A1' })])).toBeNull()
+  })
+})
+
+describe('autoAllocate — 품목 검토 지정 시 공급처 상품 판별', () => {
+  const dictionary: FruitDictionary[] = [
+    {
+      id: 'fruit-1',
+      category: '감귤',
+      keywords: ['감귤'],
+      gradeSynonyms: [],
+      sizeSynonyms: [],
+      weightAliases: { kg: ['KG'] },
+      weightMapping: {},
+      isActive: true,
+      createdAt: '',
+      updatedAt: '',
+    },
+  ]
+  const supplier = makeSupplier({ id: 'supplier-1' })
+  const order = makeOrder({
+    productName: '제주 감귤',
+    optionName: '1박스 5kg',
+    displayProductName: '제주 감귤 1박스 5kg',
+  })
+  const allocate = (supplierProducts: SupplierProduct[]) =>
+    autoAllocate({
+      orders: [order],
+      productMappings: [],
+      nameMappings: [],
+      suppliers: [supplier],
+      supplierProducts,
+      fruitDictionary: dictionary,
+      keywordOverrides: new Map([['감귤', supplier.id]]),
+    }).allocated[0]
+
+  it('최고점 상품이 하나면 공급처 상품명과 단가를 쓴다', () => {
+    const result = allocate([
+      makeSP({ supplierId: supplier.id, productName: '감귤 5kg', price: 6300 }),
+      makeSP({ supplierId: supplier.id, productName: '감귤 3kg', price: 5000 }),
+    ])
+    expect(result?.supplierProductName).toBe('감귤 5kg')
+    expect(result?.supplierPrice).toBe(6300)
+  })
+
+  it('최고점이 동점이면 임의로 고르지 않고 단가를 비워 둔다', () => {
+    const result = allocate([
+      makeSP({ supplierId: supplier.id, productName: '감귤 3kg', price: 5000 }),
+      makeSP({ supplierId: supplier.id, productName: '감귤 10kg', price: 9100 }),
+    ])
+    expect(result?.supplierProductName).toBe('제주 감귤 1박스 5kg')
+    expect(result?.supplierPrice).toBeUndefined()
   })
 })

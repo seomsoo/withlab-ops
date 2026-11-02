@@ -552,7 +552,11 @@ function findSupplierProductByAttributes(
 
   if (scored.length === 0) return null
   scored.sort((a, b) => b.score - a.score)
-  return scored[0]!.sp
+
+  // 동점이면 임의로 고르지 않는다. 틀린 상품에 단가가 붙으면 가격 미확인으로도 걸러지지 않는다.
+  const [best, second] = scored
+  if (second && second.score >= best!.score) return null
+  return best!.sp
 }
 
 function findProductMapping(
