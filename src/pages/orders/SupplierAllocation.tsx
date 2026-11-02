@@ -28,6 +28,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
 import {
@@ -48,6 +49,10 @@ import { useAllocation } from '@/hooks/useAllocation'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { useFruitDictionary } from '@/hooks/useFruitDictionary'
 import { extractAttributes } from '@/lib/matching/attributeExtractor'
+import {
+  getMissingPriceReason,
+  MISSING_PRICE_MESSAGES,
+} from '@/lib/allocation/missingPrice'
 import {
   getSupplierProductCounts,
   getAllSupplierProducts,
@@ -70,7 +75,7 @@ import type { SuggestedAllocation } from '@/lib/allocation/autoAllocator'
 import type { MatchCandidate } from '@/lib/matching/attributeMatcher'
 import type { Supplier, SupplierProduct } from '@/types'
 
-type FilterType = 'all' | 'auto' | 'suggested' | 'unmapped' | 'edited'
+type FilterType = 'all' | 'auto' | 'suggested' | 'unmapped' | 'edited' | 'noPrice'
 
 type AllocationGroup = {
   key: string
@@ -86,6 +91,7 @@ type AllocationGroup = {
   orderIds: string[]
   smartAllocationApplied: boolean
   supplierPrice?: number
+  missingPriceCount: number
   supplierProductName?: string
   supplierProductCode?: string
   nameMappingApplied: boolean
@@ -133,6 +139,7 @@ export default function SupplierAllocation() {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [distributeDialog, setDistributeDialog] = useState<AllocationGroup | null>(null)
   const [refreshOpen, setRefreshOpen] = useState(false)
+  const [missingPriceConfirmOpen, setMissingPriceConfirmOpen] = useState(false)
   const [spCounts, setSpCounts] = useState<Map<string, number>>(new Map())
   const [spTemplateIds, setSpTemplateIds] = useState<Set<string>>(new Set())
   const [allSp, setAllSp] = useState<SupplierProduct[]>([])
@@ -172,9 +179,11 @@ export default function SupplierAllocation() {
     for (const alloc of allocations) {
       const key = `${alloc.order.productName}||${alloc.order.optionName}||${alloc.supplierId}`
       const existing = groupMap.get(key)
+      const missingPrice = alloc.supplierPrice == null ? 1 : 0
       if (existing) {
         existing.orderCount++
         existing.totalQuantity += alloc.order.quantity
+        existing.missingPriceCount += missingPrice
         existing.items.push(alloc)
         existing.orderIds.push(alloc.orderId)
         if (alloc.isTemporaryOverride) existing.status = 'edited'
@@ -194,6 +203,7 @@ export default function SupplierAllocation() {
           nameMappingApplied: alloc.nameMappingApplied,
           smartAllocationApplied: alloc.smartAllocationApplied,
           supplierPrice: alloc.supplierPrice,
+          missingPriceCount: missingPrice,
           supplierProductName: alloc.supplierProductName,
           supplierProductCode: alloc.supplierProductCode,
           allocationReason: alloc.allocationReason,
@@ -228,6 +238,7 @@ export default function SupplierAllocation() {
           status: sug ? 'suggested' : 'unmapped',
           items: [],
           orderIds: [order.id],
+          missingPriceCount: 0,
           nameMappingApplied: false,
           smartAllocationApplied: false,
           topCandidate: sug?.candidates[0],
@@ -258,6 +269,7 @@ export default function SupplierAllocation() {
       suggested: groups.filter((g) => g.status === 'suggested').length,
       unmapped: groups.filter((g) => g.status === 'unmapped').length,
       edited: groups.filter((g) => g.status === 'edited').length,
+      noPrice: groups.filter((g) => g.missingPriceCount > 0).length,
     }
   }, [groups])
 
@@ -275,7 +287,9 @@ export default function SupplierAllocation() {
 
   const filteredGroups = useMemo(() => {
     let result = groups
-    if (filter !== 'all') {
+    if (filter === 'noPrice') {
+      result = result.filter((g) => g.missingPriceCount > 0)
+    } else if (filter !== 'all') {
       result = result.filter((g) => g.status === filter)
     }
     if (supplierFilter !== 'all') {
@@ -468,6 +482,26 @@ export default function SupplierAllocation() {
             </div>
           )}
 
+          {counts.noPrice > 0 && (
+            <div className="mt-4 flex items-center gap-3 rounded-radius-md border border-warning-dark/20 bg-warning-light px-4 py-3">
+              <AlertCircle size={18} className="text-warning-dark" />
+              <div className="text-sm">
+                <span className="font-semibold text-warning-dark">
+                  가격 미확인 {counts.noPrice}건
+                </span>
+                <span className="text-t-secondary ml-1">
+                  — 공급처는 배정됐지만 단가가 없어 예상 발주금액에서 빠집니다
+                </span>
+              </div>
+              <button
+                className="ml-auto text-xs font-medium text-primary hover:underline"
+                onClick={() => setFilter('noPrice')}
+              >
+                가격 미확인만 보기
+              </button>
+            </div>
+          )}
+
           {/* 자동배정 / 재배정 */}
           {!isReadonly && (
             <div className="mt-4 flex items-center justify-between rounded-radius-md border border-line bg-bg-subtle px-4 py-2.5">
@@ -565,7 +599,7 @@ export default function SupplierAllocation() {
 
           {/* Filter bar */}
           <div className="mt-3 flex items-center gap-2">
-            {(['all', 'auto', 'suggested', 'unmapped', 'edited'] as FilterType[]).map(
+            {(['all', 'auto', 'suggested', 'unmapped', 'edited', 'noPrice'] as FilterType[]).map(
               (f) => (
                 <button
                   key={f}
@@ -582,6 +616,7 @@ export default function SupplierAllocation() {
                   {f === 'suggested' && '추천'}
                   {f === 'unmapped' && '미분류'}
                   {f === 'edited' && '수정됨'}
+                  {f === 'noPrice' && '가격 미확인'}
                   <span className="ml-1 opacity-70">
                     {counts[f]}
                   </span>
@@ -669,9 +704,13 @@ export default function SupplierAllocation() {
             <div className="mt-6 flex justify-end border-t border-line pt-4">
               <Button
                 disabled={counts.unmapped > 0 || counts.suggested > 0}
-                onClick={() =>
-                  navigate(`/orders/${sessionId}/download`)
-                }
+                onClick={() => {
+                  if (counts.noPrice > 0) {
+                    setMissingPriceConfirmOpen(true)
+                  } else {
+                    navigate(`/orders/${sessionId}/download`)
+                  }
+                }}
               >
                 다음: 발주서 다운로드
                 <ArrowRight size={16} className="ml-1" />
@@ -680,6 +719,34 @@ export default function SupplierAllocation() {
           )}
         </>
       )}
+
+      <Dialog open={missingPriceConfirmOpen} onOpenChange={setMissingPriceConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>가격 미확인 {counts.noPrice}건이 있습니다</DialogTitle>
+            <DialogDescription>
+              그대로 진행해도 발주서는 만들 수 있지만, 예상 발주금액에서 빠지고
+              가격정리에도 공급처 단가가 비어 있게 됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => navigate(`/orders/${sessionId}/download`)}
+            >
+              그대로 진행
+            </Button>
+            <Button
+              onClick={() => {
+                setFilter('noPrice')
+                setMissingPriceConfirmOpen(false)
+              }}
+            >
+              확인하러 가기
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Distribute Dialog */}
       {distributeDialog && (
@@ -737,10 +804,9 @@ function EstimatedCostCard({ groups }: { groups: AllocationGroup[] }) {
     let sum = 0
     let unknown = 0
     for (const g of groups) {
-      if (g.supplierPrice != null) {
-        sum += g.supplierPrice * g.totalQuantity
-      } else {
-        unknown++
+      if (g.missingPriceCount > 0) unknown++
+      for (const item of g.items) {
+        sum += (item.supplierPrice ?? 0) * item.order.quantity
       }
     }
     return { total: sum, unknownCount: unknown }
@@ -1076,6 +1142,7 @@ const GroupRow = memo(function GroupRow({
 }: GroupRowProps) {
   const isSuggested = group.status === 'suggested'
   const topCandidate = group.topCandidate
+  const missingPriceItem = group.items.find((item) => item.supplierPrice == null)
 
   const handleToggle = useCallback(() => {
     onToggle(group.key)
@@ -1157,6 +1224,26 @@ const GroupRow = memo(function GroupRow({
               <span className="font-mono">
                 ₩{group.supplierPrice.toLocaleString('ko-KR')}
               </span>
+            )}
+            {missingPriceItem && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-default rounded bg-warning-light px-1.5 py-0.5 text-[10px] font-medium text-warning-dark">
+                      가격 미확인
+                      {group.missingPriceCount < group.items.length &&
+                        ` ${group.missingPriceCount}/${group.items.length}`}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p className="text-xs">
+                      {MISSING_PRICE_MESSAGES[
+                        getMissingPriceReason(missingPriceItem, supplierProducts)
+                      ]}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
             {group.smartAllocationApplied && (
               <TooltipProvider delayDuration={200}>
@@ -1312,6 +1399,7 @@ const GroupRow = memo(function GroupRow({
     pg.supplierProductName === ng.supplierProductName &&
     pg.supplierProductCode === ng.supplierProductCode &&
     pg.supplierPrice === ng.supplierPrice &&
+    pg.missingPriceCount === ng.missingPriceCount &&
     pg.status === ng.status &&
     pg.orderCount === ng.orderCount &&
     pg.totalQuantity === ng.totalQuantity &&
