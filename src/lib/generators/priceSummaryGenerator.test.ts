@@ -54,8 +54,24 @@ describe('가격정리 양식 출력', () => {
         )
         .map((m) => m[0])
     expect(untouched(after)).toEqual(untouched(before))
-    expect(await output.file('xl/styles.xml')!.async('string')).toBe(
-      await original.file('xl/styles.xml')!.async('string')
+    const originalStyles = await original.file('xl/styles.xml')!.async('string')
+    const outputStyles = await output.file('xl/styles.xml')!.async('string')
+    const oldCount = Number(
+      originalStyles.match(/<dxfs\b[^>]*count="(\d+)"/)?.[1]
+    )
+    const redFont = '<dxf><font><color rgb="FFFF0000"/></font></dxf>'
+    expect(outputStyles).toContain(`${redFont}</dxfs>`)
+    expect(
+      outputStyles
+        .replace(`${redFont}</dxfs>`, '</dxfs>')
+        .replace(`<dxfs count="${oldCount + 1}"`, `<dxfs count="${oldCount}"`)
+    ).toBe(originalStyles)
+    expect(after).toContain(
+      `sqref="P3:P1048576"><cfRule type="expression" dxfId="${oldCount}"`
+    )
+    expect(after).toContain('<formula>AND(ISNUMBER(P3),P3&lt;0)</formula>')
+    expect(after.indexOf('<conditionalFormatting')).toBeLessThan(
+      after.indexOf('<dataValidations')
     )
   })
   it('양식보다 많은 주문도 끝까지 출력한다', async () => {

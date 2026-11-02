@@ -13,7 +13,7 @@ const xml = (s: string) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 
-/** Only A:M cell values change; shared formulas and styles elsewhere stay intact. */
+/** A:M values are filled; existing formulas stay intact and negative margins get a font-only rule. */
 export async function generatePriceSummary(
   template: ArrayBuffer,
   rows: PriceRow[]
@@ -74,6 +74,37 @@ export async function generatePriceSummary(
       /<dimension\b[^>]*\/>/,
       `<dimension ref="A1:Z${Math.max(maxRow, rows.length + 2)}"/>`
     )
+  const styleFile = zip.file('xl/styles.xml')
+  if (!styleFile) throw new Error('가격정리 양식의 스타일을 찾을 수 없습니다')
+  const styleXml = await styleFile.async('string')
+  const dxfs = styleXml.match(
+    /<dxfs\b[^>]*count="(\d+)"[^>]*>([\s\S]*?)<\/dxfs>/
+  )
+  if (!dxfs) throw new Error('가격정리 양식의 조건부 서식 구조를 확인해주세요')
+  const dxfId = Number(dxfs[1])
+  const redFont = '<dxf><font><color rgb="FFFF0000"/></font></dxf>'
+  zip.file(
+    'xl/styles.xml',
+    styleXml.replace(
+      dxfs[0],
+      dxfs[0]
+        .replace(/count="\d+"/, `count="${dxfId + 1}"`)
+        .replace('</dxfs>', `${redFont}</dxfs>`)
+    )
+  )
+  const priority =
+    Math.max(
+      0,
+      ...Array.from(output.matchAll(/<cfRule\b[^>]*priority="(\d+)"/g), (m) =>
+        Number(m[1])
+      )
+    ) + 1
+  const rule = `<conditionalFormatting sqref="P3:P1048576"><cfRule type="expression" dxfId="${dxfId}" priority="${priority}"><formula>AND(ISNUMBER(P3),P3&lt;0)</formula></cfRule></conditionalFormatting>`
+  // OOXML puts conditional formatting after merges/phoneticPr and before validation.
+  output = output.replace(
+    /(?=<(?:dataValidations|hyperlinks|printOptions|pageMargins|pageSetup|headerFooter|tableParts|extLst)\b|<\/worksheet>)/,
+    rule
+  )
   zip.file('xl/worksheets/sheet1.xml', output)
   const calc = '<calcPr calcId="0" fullCalcOnLoad="1" forceFullCalc="1"/>'
   zip.file(
