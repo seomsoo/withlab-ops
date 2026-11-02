@@ -9,15 +9,23 @@ import {
   downloadPlatformTemplateFile,
 } from '@/lib/supabase/platformTemplates'
 import { convertCourierName } from '@/lib/matching/courierConverter'
+import { getPriceSummaries } from '@/lib/supabase/priceSummary'
+import {
+  buildExportItems,
+  buildPastePreview,
+  sortByPriceSummaryOrder,
+} from '@/lib/tracking/priceSummaryTracking'
 import { generateTrackingExportExcel } from '@/lib/generators/trackingExportGenerator'
 import { downloadBlob, buildTrackingExportFileName } from '@/utils/download'
 
+import type { PricePastePreview } from '@/lib/tracking/priceSummaryTracking'
 import type {
   Platform,
   CourierWarning,
   StandardTrackingExport,
-  TrackingExportItem,
 } from '@/types'
+
+const PLATFORMS: Platform[] = ['coupang', 'toss']
 
 type PlatformExportData = {
   count: number
@@ -131,51 +139,22 @@ export function useTrackingExport(workSessionId: string) {
           getCourierMappings(),
         ])
 
-        const allocMap = new Map(allocsWithOrders.map((a) => [a.id, a]))
+        const { items: selectedItems, warnings: newWarnings } = buildExportItems(
+          trackings,
+          allocsWithOrders,
+          mappings,
+          platform,
+          filterLabel
+        )
 
-        const items: TrackingExportItem[] = []
-        const newWarnings: CourierWarning[] = []
-
-        for (const t of trackings) {
-          if (t.status !== 'matched' || !t.allocationId || !t.trackingNumber) continue
-
-          const alloc = allocMap.get(t.allocationId)
-          if (!alloc) continue
-          if (alloc.order.platform !== platform) continue
-          if (filterLabel && alloc.order.orderImportLabel !== filterLabel) continue
-
-          const converted = convertCourierName(
-            t.trackingCompany,
-            platform,
-            mappings
-          )
-
-          if (!converted.isMapped) {
-            newWarnings.push({
-              trackingId: t.id,
-              platform,
-              supplierId: t.sourceSupplierId,
-              supplierName: alloc.supplierName,
-              originalCourier: t.trackingCompany,
-              trackingNumber: t.trackingNumber,
-            })
-          }
-
-          items.push({
-            trackingId: t.id,
-            allocationId: t.allocationId,
-            orderId: alloc.orderId,
-            orderNo: alloc.order.orderNo,
-            orderItemNo: alloc.order.orderItemNo,
-            matchingKey: alloc.order.matchingKey,
-            trackingCompany: converted.name,
-            trackingNumber: t.trackingNumber,
-            courierMapped: converted.isMapped,
-            originalRow: t.raw,
-            originalRowValues: alloc.order.rawValues,
-            originalRowNumber: alloc.order.rawRowNumber,
-            orderImportLabel: alloc.order.orderImportLabel,
-          })
+        // 업로드에 꼭 필요한 파일이므로 가격정리 조회 실패로 다운로드를 막지 않는다.
+        let items = selectedItems
+        try {
+          const summaries = await getPriceSummaries(workSessionId)
+          items = sortByPriceSummaryOrder(selectedItems, summaries)
+        } catch (err) {
+          console.error('가격정리 순서 조회 실패:', err)
+          toast.warning('가격정리 순서를 불러오지 못해 기존 순서로 다운로드합니다')
         }
 
         if (items.length === 0) {
@@ -215,10 +194,25 @@ export function useTrackingExport(workSessionId: string) {
     [workSessionId]
   )
 
+  const loadPastePreviews = useCallback(async (): Promise<PricePastePreview[]> => {
+    const [trackings, allocsWithOrders, mappings, summaries] = await Promise.all([
+      getTrackings(workSessionId),
+      getAllocations(workSessionId),
+      getCourierMappings(),
+      getPriceSummaries(workSessionId),
+    ])
+    const items = PLATFORMS.flatMap(
+      (platform) =>
+        buildExportItems(trackings, allocsWithOrders, mappings, platform).items
+    )
+    return summaries.map((summary) => buildPastePreview(summary, items))
+  }, [workSessionId])
+
   return {
     exportData,
     isLoading,
     courierWarnings,
     downloadPlatformFile,
+    loadPastePreviews,
   }
 }
