@@ -385,6 +385,7 @@ export type TrackingParseMeta = {
   validCount: number
   invalidCount: number
   skippedRows: number
+  orphanTrackingRows: number
   detectedCourier: string | null
 }
 

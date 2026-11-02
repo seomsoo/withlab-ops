@@ -606,6 +606,24 @@ export default function TrackingUpload() {
               </div>
             </div>
 
+            {uploadResult.parseResult.meta.orphanTrackingRows > 0 && (
+              <div
+                role="alert"
+                className="mb-4 flex items-start gap-3 rounded-radius-md border border-warning-dark/20 bg-warning-light px-4 py-3"
+              >
+                <AlertCircle size={18} className="mt-0.5 flex-shrink-0 text-warning-dark" />
+                <div className="text-sm">
+                  <div className="font-semibold text-warning-dark">
+                    주문번호 없는 운송장 {uploadResult.parseResult.meta.orphanTrackingRows}행을 건너뛰었습니다
+                  </div>
+                  <div className="text-t-secondary">
+                    운송장번호는 있지만 어떤 주문인지 알 수 없는 행입니다. 한 주문을 여러 박스로 나눈 행이 아니라면
+                    공급처 파일의 주문번호를 확인해 주세요.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* 매칭 요약 */}
             <div className="mb-4 flex items-center gap-3 text-sm">
               <span className="flex items-center gap-1 text-green-700">

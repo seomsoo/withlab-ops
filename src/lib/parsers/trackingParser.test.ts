@@ -141,6 +141,16 @@ describe('trackingParser', () => {
     expect(result.trackings).toHaveLength(0)
     expect(result.invalidRows).toHaveLength(0)
     expect(result.meta.skippedRows).toBe(1)
+    expect(result.meta.orphanTrackingRows).toBe(1)
+  })
+
+  it('완전히 빈 행은 주문번호 없는 운송장으로 세지 않는다', () => {
+    const emptyRow = new Array(A_HEADERS.length).fill('')
+    const wb = makeWorkbook(A_HEADERS, [emptyRow, makeARow()])
+    const result = parseTracking(wb)
+
+    expect(result.meta.skippedRows).toBe(1)
+    expect(result.meta.orphanTrackingRows).toBe(0)
   })
 
   it('택배사 누락 → invalidRow', () => {
