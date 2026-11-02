@@ -75,6 +75,8 @@ import type { SuggestedAllocation } from '@/lib/allocation/autoAllocator'
 import type { MatchCandidate } from '@/lib/matching/attributeMatcher'
 import type { Supplier, SupplierProduct } from '@/types'
 
+const OTHER_FRUIT_FILTER = '기타'
+
 type FilterType = 'all' | 'auto' | 'suggested' | 'unmapped' | 'edited' | 'noPrice'
 
 type AllocationGroup = {
@@ -135,6 +137,7 @@ export default function SupplierAllocation() {
 
   const [filter, setFilter] = useState<FilterType>('all')
   const [supplierFilter, setSupplierFilter] = useState<string>('all')
+  const [fruitFilter, setFruitFilter] = useState<string>('all')
   const [sortMode, setSortMode] = useState<'name' | 'count' | 'supplier'>('count')
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   const [distributeDialog, setDistributeDialog] = useState<AllocationGroup | null>(null)
@@ -285,6 +288,29 @@ export default function SupplierAllocation() {
       .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   }, [groups])
 
+  const fruitByGroupKey = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const g of groups) {
+      const { fruit } = extractAttributes(g.productName, g.optionName, fruitDictionary)
+      map.set(g.key, fruit ?? OTHER_FRUIT_FILTER)
+    }
+    return map
+  }, [groups, fruitDictionary])
+
+  const fruitOptions = useMemo(() => {
+    const groupCounts = new Map<string, number>()
+    for (const fruit of fruitByGroupKey.values()) {
+      groupCounts.set(fruit, (groupCounts.get(fruit) ?? 0) + 1)
+    }
+    return Array.from(groupCounts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => {
+        if (a.name === OTHER_FRUIT_FILTER) return 1
+        if (b.name === OTHER_FRUIT_FILTER) return -1
+        return a.name.localeCompare(b.name, 'ko')
+      })
+  }, [fruitByGroupKey])
+
   const filteredGroups = useMemo(() => {
     let result = groups
     if (filter === 'noPrice') {
@@ -295,13 +321,17 @@ export default function SupplierAllocation() {
     if (supplierFilter !== 'all') {
       result = result.filter((g) => g.supplierId === supplierFilter)
     }
+    if (fruitFilter !== 'all') {
+      result = result.filter((g) => fruitByGroupKey.get(g.key) === fruitFilter)
+    }
     return result
-  }, [groups, filter, supplierFilter])
+  }, [groups, filter, supplierFilter, fruitFilter, fruitByGroupKey])
 
-  // 다른 공급처의 미확인 품목이 공급처 필터에 가려지지 않도록 필터도 함께 푼다.
+  // 미확인 품목이 공급처·과일 필터에 가려지지 않도록 필터도 함께 푼다.
   const openMissingPriceReview = useCallback(() => {
     setFilter('noPrice')
     setSupplierFilter('all')
+    setFruitFilter('all')
   }, [])
 
   const toggleGroup = useCallback((key: string) => {
@@ -640,6 +670,21 @@ export default function SupplierAllocation() {
                   <SelectItem value="supplier">공급처별</SelectItem>
                 </SelectContent>
               </Select>
+              {fruitOptions.length > 0 && (
+                <Select value={fruitFilter} onValueChange={setFruitFilter}>
+                  <SelectTrigger className="h-8 w-36 text-xs">
+                    <SelectValue placeholder="과일 필터" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체 과일</SelectItem>
+                    {fruitOptions.map((f) => (
+                      <SelectItem key={f.name} value={f.name}>
+                        {f.name} {f.count}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {assignedSuppliers.length > 0 && (
                 <Select value={supplierFilter} onValueChange={setSupplierFilter}>
                   <SelectTrigger className="h-8 w-40 text-xs">
