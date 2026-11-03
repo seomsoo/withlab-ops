@@ -145,11 +145,17 @@ function pasteCell(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
+/** 공급처 파일에서 온 값이 일반 텍스트 붙여넣기에서 수식으로 실행되지 않게 한다. */
+function plainTextCell(value: string): string {
+  const cell = pasteCell(value)
+  return /^[=+\-@]/.test(cell) ? `'${cell}` : cell
+}
+
 export function toPasteText(rows: PricePasteRow[]): string {
   return rows
     .map(
       (row) =>
-        `${pasteCell(row.trackingCompany)}\t${pasteCell(row.trackingNumber)}`
+        `${plainTextCell(row.trackingCompany)}\t${plainTextCell(row.trackingNumber)}`
     )
     .join('\n')
 }
