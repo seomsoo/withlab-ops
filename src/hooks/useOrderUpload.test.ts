@@ -17,7 +17,13 @@ vi.mock('react', () => ({
   useCallback: (fn: unknown) => fn,
   useEffect: vi.fn(),
 }))
-vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+}))
+vi.mock('@/lib/allocation/allocateAppendedOrders', () => ({
+  allocateAppendedOrders: vi.fn().mockResolvedValue(0),
+  getUnallocatedOrderIds: vi.fn().mockResolvedValue(new Set()),
+}))
 vi.mock('@/lib/supabase/orders', () => ({
   createOrderImport: vi.fn(),
   appendOrdersToImport: vi.fn(),
