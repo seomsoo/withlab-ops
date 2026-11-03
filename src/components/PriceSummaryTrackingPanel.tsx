@@ -9,10 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  toPasteHtml,
-  toPasteText,
-} from '@/lib/tracking/priceSummaryTracking'
+import { toPasteHtml, toPasteText } from '@/lib/tracking/priceSummaryTracking'
 import { cn } from '@/lib/utils'
 import { copyTable } from '@/utils/clipboard'
 
