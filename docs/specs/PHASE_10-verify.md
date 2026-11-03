@@ -141,3 +141,46 @@
 | Codex P2: 라벨 채번 | `generateLabel`을 미사용 번호 탐색 방식으로 변경 |
 | ESLint warning | `eslint-disable-next-line` 주석 추가 |
 | 수용 안 함 | `allocationId` 타입 (`string` vs `string \| null`) — falsy 체크로 동작 동일 |
+
+---
+
+# Phase 10 이후 운영 개선 검증 — 배정 동작 수정 + 사용 가이드 개편
+검증일시: 2026-11-03
+
+스펙 Phase가 아닌 운영 중 사용자 요청 변경이다. 기준은 `docs/CHANGELOG.md`의 2026-11-02 "자동 배정 동작 수정", 2026-11-03 "사용 가이드를 주제별 페이지로 개편" 항목이다.
+
+## 완료 확인 기준 결과
+- [x] `npm run lint` 통과
+- [x] `npm run typecheck` 통과
+- [x] `npm run test:run` 25개 파일, 323개 테스트 통과
+- [x] `npm run build` 성공 (청크 크기 경고만 있음)
+- [x] 품목 검토 [건너뛰기]와 공급처 미선택 [배정 시작] 시 `?auto=1`로 자동 배정 (`ItemReview.tsx`, `SupplierAllocation.tsx`, `useAllocation.ts`)
+- [x] 비활성 공급처 자동 배정 제외 — 상품 목록 유무 두 분기 모두 (`autoAllocator.ts`, 테스트 15, 15-1, 15-2)
+- [x] [기존 주문에 추가] 후 새 주문만 자동 배정 (`allocateAppendedOrders.ts` + 테스트)
+- [x] `/guide`, `/guide/:slug` 라우트와 16개 글, 기존 `Guide.tsx` 삭제
+
+## Phase별 전문 검증 결과
+해당 없음 (스펙 Phase 외 운영 개선).
+
+## Codex 코드리뷰 결과
+- **[P2] src/lib/allocation/autoAllocator.ts:77-79** — 상품 목록이 없을 때 비활성 공급처 fallback 누락
+  - 문제: 공급처 상품 목록이 하나도 없으면 `findProductMapping()`이 비활성 공급처 매핑까지 포함해 1순위를 고르고, 그 공급처가 비활성이면 활성 후보가 있어도 주문이 미분류가 됐다.
+  - 수정: 상품 목록 없는 분기에서 활성 공급처 매핑만 넘기도록 바꾸고 테스트 15-2를 추가했다. (✅ 수정 완료)
+
+## 누락 (스펙에 있는데 구현 안 됨)
+없음
+
+## 스코프 크립 (구현했는데 스펙에 없음)
+없음 (모두 사용자 요청 범위)
+
+## 컨벤션 위반
+없음
+
+## spec-reviewer 결과
+해당 없음 (스펙 Phase 외 운영 개선)
+
+## 확인하지 못한 것
+- 브라우저: 운영 화면은 대시보드, 작업건 목록, 주문 업로드까지만 보기로 확인했다. 실제 데이터라 버튼 동작은 확인하지 않았다.
+
+## 종합 판정
+✅ 통과
