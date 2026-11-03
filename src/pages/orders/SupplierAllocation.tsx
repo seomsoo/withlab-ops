@@ -118,6 +118,9 @@ export default function SupplierAllocation() {
     }
   }, [searchParams])
 
+  const autoRun =
+    searchParams.has('overrides') || searchParams.get('auto') === '1'
+
   const {
     allocations,
     unallocatedOrders,
@@ -131,7 +134,7 @@ export default function SupplierAllocation() {
     applySuggested,
     distributeGroup,
     changeSupplierProduct,
-  } = useAllocation(sessionId ?? '', keywordOverrides)
+  } = useAllocation(sessionId ?? '', keywordOverrides, autoRun)
   const { suppliers } = useSuppliers()
   const { dictionaries: fruitDictionary } = useFruitDictionary(true)
 

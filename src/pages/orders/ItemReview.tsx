@@ -106,16 +106,15 @@ export default function ItemReview() {
         obj[k] = v
       }
       params.set('overrides', JSON.stringify(obj))
+    } else {
+      params.set('auto', '1')
     }
 
-    const query = params.toString()
-    navigate(
-      `/orders/${sessionId}/allocation${query ? `?${query}` : ''}`
-    )
+    navigate(`/orders/${sessionId}/allocation?${params.toString()}`)
   }, [sessionId, navigate, getKeywordOverrides, getDefaultSaveTargets])
 
   const handleSkip = useCallback(() => {
-    navigate(`/orders/${sessionId}/allocation`)
+    navigate(`/orders/${sessionId}/allocation?auto=1`)
   }, [sessionId, navigate])
 
   if (sessionLoading || loading) return <ItemReviewSkeleton />
@@ -222,7 +221,7 @@ export default function ItemReview() {
         <div className="mt-3 flex items-center gap-1.5 text-xs text-t-mute">
           <Info size={14} />
           <span>
-            미선택 품목은 미분류로 표시되며, 공급처 배정에서 수동 또는 자동 배정할 수 있습니다
+            미선택 품목은 품목 매핑대로 자동 배정되고, 매핑이 없으면 미분류로 표시됩니다
           </span>
         </div>
       </div>

@@ -23,7 +23,11 @@ import type { AllocationWithOrder } from '@/lib/supabase/allocations'
 import type { PendingAllocation, SuggestedAllocation } from '@/lib/allocation/autoAllocator'
 import type { StandardOrder, Platform, SupplierProduct } from '@/types'
 
-export function useAllocation(workSessionId: string, initialOverrides?: Map<string, string>) {
+export function useAllocation(
+  workSessionId: string,
+  initialOverrides?: Map<string, string>,
+  autoRun = false
+) {
   const [allocations, setAllocations] = useState<AllocationWithOrder[]>([])
   const [unallocatedOrders, setUnallocatedOrders] = useState<StandardOrder[]>([])
   const [suggested, setSuggested] = useState<SuggestedAllocation[]>([])
@@ -99,7 +103,7 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
         if (!alive) return
         setUnallocatedOrders(unalloc)
 
-        if (unalloc.length > 0 && data.length === 0 && initialOverrides && initialOverrides.size > 0) {
+        if (unalloc.length > 0 && data.length === 0 && autoRun) {
           const [orders, productMappingsRaw, nameMappingsRaw, suppliers, supplierProducts, fruitDictionary] =
             await Promise.all([
               getOrders(workSessionId),
@@ -160,7 +164,7 @@ export function useAllocation(workSessionId: string, initialOverrides?: Map<stri
       }
     })()
     return () => { alive = false }
-  }, [workSessionId, initialOverrides])
+  }, [workSessionId, initialOverrides, autoRun])
 
   const runAutoAllocation = useCallback(async (keywordOverrides?: Map<string, string>) => {
     if (!workSessionId) return

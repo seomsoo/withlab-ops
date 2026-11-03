@@ -73,7 +73,10 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
   const suggested: SuggestedAllocation[] = []
   const unmatched: UnmatchedOrder[] = []
 
-  const supplierMap = new Map(suppliers.map((s) => [s.id, s]))
+  // 비활성 공급처는 품목 매핑이 남아 있어도 발주가 나가지 않게 제외한다.
+  const supplierMap = new Map(
+    suppliers.filter((s) => s.isActive).map((s) => [s.id, s])
+  )
   const useSmartAllocation =
     supplierProducts !== undefined && supplierProducts.length > 0
   const useAttributeMatch =
@@ -244,7 +247,7 @@ export function autoAllocate(input: AutoAllocationInput): AllocationResult {
         order.platform,
         order.productName,
         order.optionName,
-        productMappings
+        productMappings.filter((m) => supplierMap.has(m.supplierId))
       )
 
       if (!mapping) {

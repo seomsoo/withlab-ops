@@ -282,7 +282,7 @@ describe('autoAllocate', () => {
     expect(result.allocated[0]!.supplierId).toBe('sup-A')
   })
 
-  it('15. 비활성 공급처 매핑도 자동 배정에 포함', () => {
+  it('15. 비활성 공급처는 품목 매핑이 있어도 자동 배정하지 않음', () => {
     const result = autoAllocate({
       orders: [makeOrder()],
       productMappings: [makeMapping()],
@@ -290,8 +290,46 @@ describe('autoAllocate', () => {
       suppliers: [makeSupplier({ isActive: false })],
     })
 
-    expect(result.allocated).toHaveLength(1)
-    expect(result.allocated[0]!.supplierId).toBe('sup-A')
+    expect(result.allocated).toHaveLength(0)
+    expect(result.unmatched).toHaveLength(1)
+  })
+
+  it('15-1. 기본 공급처가 비활성이면 활성 후보로 배정', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [
+        makeMapping({ id: 'map-A', supplierId: 'sup-A', isDefault: true }),
+        makeMapping({ id: 'map-B', supplierId: 'sup-B', isDefault: false }),
+      ],
+      nameMappings: [],
+      suppliers: [
+        makeSupplier({ id: 'sup-A', isActive: false }),
+        makeSupplier({ id: 'sup-B', name: 'B농장' }),
+      ],
+      supplierProducts: [
+        makeSP({ supplierId: 'sup-B', productName: '참외 5kg' }),
+      ],
+    })
+
+    expect(result.allocated[0]?.supplierId).toBe('sup-B')
+  })
+
+  it('15-2. 상품 목록이 없어도 기본 공급처가 비활성이면 활성 후보로 배정', () => {
+    const result = autoAllocate({
+      orders: [makeOrder()],
+      productMappings: [
+        makeMapping({ id: 'map-A', supplierId: 'sup-A', isDefault: true }),
+        makeMapping({ id: 'map-B', supplierId: 'sup-B', isDefault: false }),
+      ],
+      nameMappings: [],
+      suppliers: [
+        makeSupplier({ id: 'sup-A', isActive: false }),
+        makeSupplier({ id: 'sup-B', name: 'B농장' }),
+      ],
+    })
+
+    expect(result.allocated[0]?.supplierId).toBe('sup-B')
+    expect(result.unmatched).toHaveLength(0)
   })
 
   it('16. 스냅샷 저장: supplierProductName/supplierProductCode 포함', () => {

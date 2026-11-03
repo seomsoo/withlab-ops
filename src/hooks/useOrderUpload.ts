@@ -16,6 +16,10 @@ import {
   deleteOrderImport,
   updateOrderImportLabel,
 } from '@/lib/supabase/orders'
+import {
+  allocateAppendedOrders,
+  getUnallocatedOrderIds,
+} from '@/lib/allocation/allocateAppendedOrders'
 
 import type { StandardOrder, OrderImport, ParseResult, Platform } from '@/types'
 
@@ -279,6 +283,7 @@ export function useOrderUpload(workSessionId: string) {
           if (!targetImport) {
             throw new Error('주문을 추가할 기존 파일을 선택해주세요')
           }
+          const unallocatedBefore = await getUnallocatedOrderIds(workSessionId)
           const result = await appendOrdersToImport({
             workSessionId,
             orderImportId: targetImport.id,
@@ -292,6 +297,18 @@ export function useOrderUpload(workSessionId: string) {
           toast.success(
             `주문 ${result.insertedCount}건 추가 · 중복 ${result.duplicateCount}건 제외 (총 ${result.totalCount}건)`
           )
+          try {
+            const allocatedCount = await allocateAppendedOrders(
+              workSessionId,
+              unallocatedBefore
+            )
+            if (allocatedCount > 0) {
+              toast.success(`추가된 주문 ${allocatedCount}건을 자동 배정했습니다`)
+            }
+          } catch (err) {
+            console.error('추가 주문 자동 배정 실패:', err)
+            toast.warning('주문은 추가했지만 자동 배정에 실패했습니다. 공급처 배정에서 확인해 주세요')
+          }
           return
         }
 
